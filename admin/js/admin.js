@@ -4,7 +4,7 @@
 
 // ❌ BORRAMOS ADMIN_CREDENTIALS: Ya no usamos usuarios en duro, Supabase maneja todo.
 console.log("ADMIN.JS CARGADO CORRECTAMENTE");
-let currentUser = null;
+
 let currentPage = 'stock';
 
 // ---- INICIO / VERIFICAR SESIÓN ----
