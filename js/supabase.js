@@ -4,8 +4,8 @@
 //  tus credenciales de supabase.com
 // =============================================
 
-const SUPABASE_URL = 'https://TU_PROYECTO.supabase.co';   // <-- cambiar
-const SUPABASE_KEY = 'TU_ANON_KEY_AQUI';                  // <-- cambiar
+const SUPABASE_URL = 'https://vlmehdraehakytqtggip.supabase.co';  
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZsbWVoZHJhZWhha3l0cXRnZ2lwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NjUwOTEsImV4cCI6MjA5MTI0MTA5MX0.SRG8JGa2ghIbjleP8PHzfG8LzwazUSoOWUPCyKmdZ5g'; 
 
 // Cliente Supabase (cargado desde CDN en el HTML)
 let supabase = null;
