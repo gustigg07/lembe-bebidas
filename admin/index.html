@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lembe — Panel de gestión</title>
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;1,400&family=DM+Sans:wght@300;400;500&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="/admin/css/admin.css">
+</head>
+
+<body>
+
+  <div class="login-screen" id="loginScreen">
+    <div class="login-box">
+      <div class="lb-logo">Lembe</div>
+      <div class="lb-sub">Acceso exclusivo · Panel de gestión</div>
+
+      <label class="lb-label">Correo electrónico</label>
+      <input class="lb-input" type="email" id="adminEmail" placeholder="ejemplo@lembebebidas.com" autocomplete="email">
+
+      <label class="lb-label">Contraseña</label>
+      <input class="lb-input" type="password" id="adminPassword" placeholder="••••••••" autocomplete="current-password">
+
+      <div class="lb-error" id="loginError" style="display:none;">Correo o contraseña incorrectos.</div>
+
+      <button class="lb-btn" onclick="intentarLogin(event)">Ingresar al panel</button>
+      <div class="lb-hint">Solo para el equipo de Lembe Bebidas</div>
+    </div>
+  </div>
+
+  <div class="app" id="adminApp" style="display:none">
+    <div class="sidebar">
+      <div class="sb-logo">
+        <div class="name">Lembe</div>
+        <div class="sub">Panel de gestión</div>
+      </div>
+      <div class="sb-nav">
+        <div class="sb-section">Inventario</div>
+        <div class="sb-item active" data-page="stock"><span class="ico">📦</span> Control de Stock</div>
+        <div class="sb-item" data-page="catalogo"><span class="ico">📋</span> Catálogo</div>
+        <div class="sb-section">Operaciones</div>
+        <div class="sb-item" data-page="caja"><span class="ico">💰</span> Ventas y Caja</div>
+        <div class="sb-item" data-page="pedidos"><span class="ico">🛒</span> Pedidos</div>
+        <div class="sb-section">Reportes</div>
+        <div class="sb-item" data-page="historial"><span class="ico">📊</span> Historial</div>
+        <div class="sb-section">Sistema</div>
+        <div class="sb-item" data-page="config"><span class="ico">⚙️</span> Configuración</div>
+      </div>
+      <div class="sb-footer">
+        <span id="sbUser">Admin</span> ·
+        <button onclick="cerrarSesion()"
+          style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:10px;font-family:'DM Sans',sans-serif">Salir</button>
+      </div>
+    </div>
+
+    <div class="main">
+      <div class="topbar">
+        <div class="topbar-title" id="pageTitle">Control de Stock</div>
+        <div class="topbar-right" id="topbarActions"></div>
+      </div>
+      <div class="content" id="pageContent">
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="/js/supabase.js"></script>
+  <script src="/admin/js/admin.js"></script>
+</body>
+
+</html>
