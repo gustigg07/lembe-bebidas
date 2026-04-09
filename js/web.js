@@ -73,21 +73,35 @@ function initTabs() {
 // ---- CARRITO ----
 function addToCart(id) {
   const prod = allProducts.find(p => p.id === id);
-  if (!prod || prod.stock === 0) return;
+  if (!prod || prod.stock <= 0) return; // Si no hay stock, ni siquiera entra
+  
   const existing = cart.find(c => c.id === id);
   if (existing) {
-    existing.qty++;
+    if (existing.qty < prod.stock) {
+      existing.qty++;
+    } else {
+      alert(`Lo sentimos, solo hay ${prod.stock} unidades de ${prod.nombre} en stock.`);
+      return; // Frena la acción
+    }
   } else {
     cart.push({ ...prod, qty: 1 });
   }
   renderCarrito();
-  // Abre el carrito la primera vez
   if (cart.length === 1) openCarrito();
 }
 
 function changeQty(id, delta) {
   const item = cart.find(c => c.id === id);
   if (!item) return;
+  
+  const prodOriginal = allProducts.find(p => p.id === id);
+  
+  // Si el cliente quiere sumar (+) pero ya llegó al máximo del stock:
+  if (delta > 0 && prodOriginal && item.qty >= prodOriginal.stock) {
+    alert(`Stock máximo alcanzado (${prodOriginal.stock} unidades).`);
+    return;
+  }
+  
   item.qty += delta;
   if (item.qty <= 0) cart = cart.filter(c => c.id !== id);
   renderCarrito();

@@ -526,11 +526,17 @@ function getSamplePedidos() {
 }
 
 function renderPedidosContent() {
+  // 1. FILTROS Y MÉTRICAS (CORREGIDO)
   const acts = pedidosData.filter(p => !['entregado', 'cancelado'].includes(p.estado));
   const reservas = pedidosData.filter(p => p.tipo === 'reserva' && !['entregado', 'cancelado'].includes(p.estado));
-  const hoyTotal = pedidosData.reduce((a, p) => a + (p.total || 0), 0);
+  
+  // CORRECCIÓN: Solo sumamos la plata de los pedidos que NO están cancelados
+  const pedidosValidos = pedidosData.filter(p => p.estado !== 'cancelado');
+  const hoyTotal = pedidosValidos.reduce((a, p) => a + (Number(p.total) || 0), 0);
 
   const container = document.getElementById('pageContent');
+  
+  // 2. RENDERIZADO DEL HTML BASE Y EL MODAL (TU DISEÑO ORIGINAL)
   container.innerHTML = `
     <div class="metrics" style="margin-bottom:1rem">
       <div class="metric"><div class="metric-label">Activos</div><div class="metric-val" style="color:var(--gold)">${acts.length}</div></div>
@@ -565,6 +571,64 @@ function renderPedidosContent() {
         </div>
       </div>
     </div>`;
+
+  // 3. RENDERIZADO DE LAS TARJETAS (ACÁ MOSTRAMOS EL DETALLE DE LOS PRODUCTOS)
+  if (pedidosTab === 'kanban') {
+    const cols = ['nuevo', 'confirmado', 'preparando', 'listo'];
+    document.getElementById('pedidosView').innerHTML = `<div class="kanban">${cols.map(est => {
+      const cards = pedidosData.filter(p => p.estado === est);
+      return `<div class="kanban-col">
+        <div class="col-header"><span class="col-title">${estadoLabel[est] || est}</span><span class="col-count">${cards.length}</span></div>
+        <div class="col-body">
+          ${cards.length === 0 ? '<div style="padding:.8rem;text-align:center;font-size:11px;color:var(--muted)">Sin pedidos</div>' : ''}
+          ${cards.map(p => {
+            
+            // MAGIA ACÁ: Convertimos el array de items en una lista legible
+            let listaItems = '';
+            if (Array.isArray(p.items)) {
+              listaItems = p.items.map(i => `• ${i.nombre} x${i.qty}`).join('<br>');
+            } else {
+              listaItems = String(p.items || 'Sin detalle').slice(0, 60);
+            }
+
+            return `
+            <div class="kcard">
+              <div class="kcard-top"><span class="kcard-id">#${p.id}</span><span class="type-badge tb-${p.tipo}">${p.tipo}</span></div>
+              <div class="kcard-name">${p.cliente}</div>
+              
+              <div class="kcard-desc" style="font-size:11px; color:var(--cream); line-height:1.4; margin-bottom: 8px;">
+                ${listaItems}
+              </div>
+              
+              <div class="kcard-foot">
+                <span class="kcard-total">${fmt(p.total)}</span>
+                <button class="act-btn" onclick="nextPedidoStatus(${p.id})" title="Avanzar estado" style="font-size:10px">→</button>
+              </div>
+            </div>`
+          }).join('')}
+        </div>
+      </div>`;
+    }).join('')}</div>`;
+  } else {
+    // VISTA DE LISTA (Opcional, la mantenemos igual a la tuya)
+    document.getElementById('pedidosView').innerHTML = `<div class="table-wrap">
+      <div class="t-head" style="grid-template-columns:60px 1.5fr 1fr 1fr 1fr 100px">
+        <div class="th">ID</div><div class="th">Cliente</div><div class="th">Canal</div><div class="th">Total</div><div class="th">Estado</div><div class="th">Acción</div>
+      </div>
+      <div class="t-body">
+        ${pedidosData.map(p => `
+          <div class="t-row" style="grid-template-columns:60px 1.5fr 1fr 1fr 1fr 100px">
+            <div class="td muted">#${p.id}</div>
+            <div class="td"><div><div style="font-size:12px">${p.cliente}</div><div style="font-size:10px;color:var(--muted)">${p.tipo}</div></div></div>
+            <div class="td muted">${p.canal}</div>
+            <div class="td gold">${fmt(p.total)}</div>
+            <div class="td"><span class="status-badge ${estadoClass[p.estado] || ''}">${estadoLabel[p.estado] || p.estado}</span></div>
+            <div class="td"><button class="act-btn" onclick="nextPedidoStatus(${p.id})">→</button></div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+  }
+}
 
   if (pedidosTab === 'kanban') {
     const cols = ['nuevo', 'confirmado', 'preparando', 'listo'];
@@ -605,7 +669,6 @@ function renderPedidosContent() {
       </div>
     </div>`;
   }
-}
 
 function nextPedidoStatus(id) {
   const p = pedidosData.find(x => x.id === id);
