@@ -513,30 +513,21 @@ async function renderPedidosPage() {
     <button class="btn-out" onclick="exportPedidos()">Exportar</button>
     <button class="btn" onclick="openPedidoModal()">+ Nuevo pedido</button>`;
   pedidosData = await getPedidos();
-  if (!pedidosData.length) pedidosData = getSamplePedidos();
   renderPedidosContent();
 }
 
-function getSamplePedidos() {
-  return [
-    { id: 1, tipo: 'pedido', cliente: 'María González', telefono: '11 4523-8812', canal: 'WhatsApp', items: [{ nombre: 'Malbec Reserva', qty: 2, precio: 4800 }], total: 9600, entrega: 'Envío a domicilio', estado: 'nuevo', notas: 'Antes de las 18hs', created_at: new Date().toISOString() },
-    { id: 2, tipo: 'reserva', cliente: 'Carlos Suárez', telefono: '11 2231-0045', canal: 'Instagram', items: [{ nombre: 'Whisky Single Malt', qty: 1, precio: 18500 }], total: 18500, entrega: 'Retiro en local', estado: 'confirmado', notas: '', created_at: new Date().toISOString() },
-    { id: 3, tipo: 'pedido', cliente: 'Laura Méndez', telefono: '11 6677-3312', canal: 'Teléfono', items: [{ nombre: 'IPA Artesanal', qty: 6, precio: 1500 }], total: 9000, entrega: 'Retiro en local', estado: 'preparando', notas: '', created_at: new Date().toISOString() },
-  ];
-}
-
 function renderPedidosContent() {
-  // 1. FILTROS Y MÉTRICAS (CORREGIDO)
   const acts = pedidosData.filter(p => !['entregado', 'cancelado'].includes(p.estado));
   const reservas = pedidosData.filter(p => p.tipo === 'reserva' && !['entregado', 'cancelado'].includes(p.estado));
   
-  // CORRECCIÓN: Solo sumamos la plata de los pedidos que NO están cancelados
+  // Sumamos la plata solo de los pedidos válidos
   const pedidosValidos = pedidosData.filter(p => p.estado !== 'cancelado');
   const hoyTotal = pedidosValidos.reduce((a, p) => a + (Number(p.total) || 0), 0);
 
   const container = document.getElementById('pageContent');
-  
-  // 2. RENDERIZADO DEL HTML BASE Y EL MODAL (TU DISEÑO ORIGINAL)
+  if (!container) return; // Seguro anti-errores
+
+  // 1. Inyectamos la estructura base, ASEGURANDO que exista <div id="pedidosView"></div>
   container.innerHTML = `
     <div class="metrics" style="margin-bottom:1rem">
       <div class="metric"><div class="metric-label">Activos</div><div class="metric-val" style="color:var(--gold)">${acts.length}</div></div>
@@ -548,7 +539,9 @@ function renderPedidosContent() {
       <button class="filter-btn ${pedidosTab === 'kanban' ? 'active' : ''}" style="border-bottom:none" onclick="pedidosTab='kanban';renderPedidosContent()">Kanban</button>
       <button class="filter-btn ${pedidosTab === 'lista' ? 'active' : ''}" style="border-bottom:none" onclick="pedidosTab='lista';renderPedidosContent()">Lista</button>
     </div>
-    <div id="pedidosView"></div>
+    
+    <div id="pedidosView"></div> 
+
     <div class="modal-bg" id="pedidoModal" onclick="if(event.target===this)closeModal('pedidoModal')">
       <div class="modal">
         <button class="close-modal" onclick="closeModal('pedidoModal')">✕</button>
@@ -572,109 +565,72 @@ function renderPedidosContent() {
       </div>
     </div>`;
 
-  // 3. RENDERIZADO DE LAS TARJETAS (ACÁ MOSTRAMOS EL DETALLE DE LOS PRODUCTOS)
-  if (pedidosTab === 'kanban') {
-    const cols = ['nuevo', 'confirmado', 'preparando', 'listo'];
-    document.getElementById('pedidosView').innerHTML = `<div class="kanban">${cols.map(est => {
-      const cards = pedidosData.filter(p => p.estado === est);
-      return `<div class="kanban-col">
-        <div class="col-header"><span class="col-title">${estadoLabel[est] || est}</span><span class="col-count">${cards.length}</span></div>
-        <div class="col-body">
-          ${cards.length === 0 ? '<div style="padding:.8rem;text-align:center;font-size:11px;color:var(--muted)">Sin pedidos</div>' : ''}
-          ${cards.map(p => {
-            
-            // MAGIA ACÁ: Convertimos el array de items en una lista legible
-            let listaItems = '';
-            if (Array.isArray(p.items)) {
-              listaItems = p.items.map(i => `• ${i.nombre} x${i.qty}`).join('<br>');
-            } else {
-              listaItems = String(p.items || 'Sin detalle').slice(0, 60);
-            }
+  // 2. Inyectamos las tarjetitas adentro del div anterior (con seguro anti-errores)
+  const viewElement = document.getElementById('pedidosView');
+  if (viewElement) {
+    if (pedidosTab === 'kanban') {
+      const cols = ['nuevo', 'confirmado', 'preparando', 'listo'];
+      viewElement.innerHTML = `<div class="kanban">${cols.map(est => {
+        const cards = pedidosData.filter(p => p.estado === est);
+        return `<div class="kanban-col">
+          <div class="col-header"><span class="col-title">${estadoLabel[est]}</span><span class="col-count">${cards.length}</span></div>
+          <div class="col-body">
+            ${cards.length === 0 ? '<div style="padding:.8rem;text-align:center;font-size:11px;color:var(--muted)">Sin pedidos</div>' : ''}
+            ${cards.map(p => {
+              // Convertimos el array de items a texto legible
+              let listaItems = '';
+              if (Array.isArray(p.items)) {
+                listaItems = p.items.map(i => `• ${i.nombre} x${i.qty}`).join('<br>');
+              } else {
+                listaItems = String(p.items || 'Sin detalle').slice(0, 50);
+              }
 
-            return `
-            <div class="kcard">
-              <div class="kcard-top"><span class="kcard-id">#${p.id}</span><span class="type-badge tb-${p.tipo}">${p.tipo}</span></div>
-              <div class="kcard-name">${p.cliente}</div>
-              
-              <div class="kcard-desc" style="font-size:11px; color:var(--cream); line-height:1.4; margin-bottom: 8px;">
-                ${listaItems}
-              </div>
-              
-              <div class="kcard-foot">
-                <span class="kcard-total">${fmt(p.total)}</span>
-                <button class="act-btn" onclick="nextPedidoStatus(${p.id})" title="Avanzar estado" style="font-size:10px">→</button>
-              </div>
-            </div>`
-          }).join('')}
+              return `
+              <div class="kcard">
+                <div class="kcard-top"><span class="kcard-id">#${p.id}</span><span class="type-badge tb-${p.tipo}">${p.tipo}</span></div>
+                <div class="kcard-name">${p.cliente}</div>
+                <div class="kcard-desc" style="font-size:11px; color:var(--cream); line-height:1.4; margin-bottom: 8px;">
+                  ${listaItems}
+                </div>
+                <div class="kcard-foot">
+                  <span class="kcard-total">${fmt(p.total)}</span>
+                  <button class="act-btn" onclick="nextPedidoStatus(${p.id})" title="Avanzar estado" style="font-size:10px">→</button>
+                </div>
+              </div>`
+            }).join('')}
+          </div>
+        </div>`;
+      }).join('')}</div>`;
+    } else {
+      viewElement.innerHTML = `<div class="table-wrap">
+        <div class="t-head" style="grid-template-columns:60px 1.5fr 1fr 1fr 1fr 100px">
+          <div class="th">ID</div><div class="th">Cliente</div><div class="th">Canal</div><div class="th">Total</div><div class="th">Estado</div><div class="th">Acción</div>
         </div>
-      </div>`;
-    }).join('')}</div>`;
-  } else {
-    // VISTA DE LISTA (Opcional, la mantenemos igual a la tuya)
-    document.getElementById('pedidosView').innerHTML = `<div class="table-wrap">
-      <div class="t-head" style="grid-template-columns:60px 1.5fr 1fr 1fr 1fr 100px">
-        <div class="th">ID</div><div class="th">Cliente</div><div class="th">Canal</div><div class="th">Total</div><div class="th">Estado</div><div class="th">Acción</div>
-      </div>
-      <div class="t-body">
-        ${pedidosData.map(p => `
-          <div class="t-row" style="grid-template-columns:60px 1.5fr 1fr 1fr 1fr 100px">
-            <div class="td muted">#${p.id}</div>
-            <div class="td"><div><div style="font-size:12px">${p.cliente}</div><div style="font-size:10px;color:var(--muted)">${p.tipo}</div></div></div>
-            <div class="td muted">${p.canal}</div>
-            <div class="td gold">${fmt(p.total)}</div>
-            <div class="td"><span class="status-badge ${estadoClass[p.estado] || ''}">${estadoLabel[p.estado] || p.estado}</span></div>
-            <div class="td"><button class="act-btn" onclick="nextPedidoStatus(${p.id})">→</button></div>
-          </div>`).join('')}
-      </div>
-    </div>`;
-  }
-}
-
-  if (pedidosTab === 'kanban') {
-    const cols = ['nuevo', 'confirmado', 'preparando', 'listo'];
-    document.getElementById('pedidosView').innerHTML = `<div class="kanban">${cols.map(est => {
-      const cards = pedidosData.filter(p => p.estado === est);
-      return `<div class="kanban-col">
-        <div class="col-header"><span class="col-title">${estadoLabel[est]}</span><span class="col-count">${cards.length}</span></div>
-        <div class="col-body">
-          ${cards.length === 0 ? '<div style="padding:.8rem;text-align:center;font-size:11px;color:var(--muted)">Sin pedidos</div>' : ''}
-          ${cards.map(p => `
-            <div class="kcard">
-              <div class="kcard-top"><span class="kcard-id">#${p.id}</span><span class="type-badge tb-${p.tipo}">${p.tipo}</span></div>
-              <div class="kcard-name">${p.cliente}</div>
-              <div class="kcard-desc">${Array.isArray(p.items) ? p.items.map(i => i.nombre).join(', ').slice(0, 50) : String(p.items || '').slice(0, 50)}</div>
-              <div class="kcard-foot">
-                <span class="kcard-total">${fmt(p.total)}</span>
-                <button class="act-btn" onclick="nextPedidoStatus(${p.id})" title="Avanzar estado" style="font-size:10px">→</button>
-              </div>
+        <div class="t-body">
+          ${pedidosData.map(p => `
+            <div class="t-row" style="grid-template-columns:60px 1.5fr 1fr 1fr 1fr 100px">
+              <div class="td muted">#${p.id}</div>
+              <div class="td"><div><div style="font-size:12px">${p.cliente}</div><div style="font-size:10px;color:var(--muted)">${p.tipo}</div></div></div>
+              <div class="td muted">${p.canal}</div>
+              <div class="td gold">${fmt(p.total)}</div>
+              <div class="td"><span class="status-badge ${estadoClass[p.estado] || ''}">${estadoLabel[p.estado] || p.estado}</span></div>
+              <div class="td"><button class="act-btn" onclick="nextPedidoStatus(${p.id})">→</button></div>
             </div>`).join('')}
         </div>
       </div>`;
-    }).join('')}</div>`;
-  } else {
-    document.getElementById('pedidosView').innerHTML = `<div class="table-wrap">
-      <div class="t-head" style="grid-template-columns:60px 1.5fr 1fr 1fr 1fr 100px">
-        <div class="th">ID</div><div class="th">Cliente</div><div class="th">Canal</div><div class="th">Total</div><div class="th">Estado</div><div class="th">Acción</div>
-      </div>
-      <div class="t-body">
-        ${pedidosData.map(p => `
-          <div class="t-row" style="grid-template-columns:60px 1.5fr 1fr 1fr 1fr 100px">
-            <div class="td muted">#${p.id}</div>
-            <div class="td"><div><div style="font-size:12px">${p.cliente}</div><div style="font-size:10px;color:var(--muted)">${p.tipo}</div></div></div>
-            <div class="td muted">${p.canal}</div>
-            <div class="td gold">${fmt(p.total)}</div>
-            <div class="td"><span class="status-badge ${estadoClass[p.estado]}">${estadoLabel[p.estado]}</span></div>
-            <div class="td"><button class="act-btn" onclick="nextPedidoStatus(${p.id})">→</button></div>
-          </div>`).join('')}
-      </div>
-    </div>`;
+    }
   }
+}
 
-function nextPedidoStatus(id) {
+async function nextPedidoStatus(id) {
   const p = pedidosData.find(x => x.id === id);
   if (!p) return;
   const idx = estadosCycle.indexOf(p.estado);
-  if (idx < estadosCycle.length - 2) { p.estado = estadosCycle[idx + 1]; updatePedidoEstado(id, p.estado); renderPedidosContent(); }
+  if (idx < estadosCycle.length - 2) { 
+    p.estado = estadosCycle[idx + 1]; 
+    await updatePedidoEstado(id, p.estado); 
+    renderPedidosContent(); 
+  }
 }
 
 function openPedidoModal() { openModal('pedidoModal'); }
@@ -691,9 +647,11 @@ async function savePedido() {
     estado: 'nuevo', notas: document.getElementById('pf-notas').value,
   };
   const res = await insertPedido(p);
-  if (res.ok) { pedidosData = await getPedidos(); if (!pedidosData.length) pedidosData = getSamplePedidos(); }
+  if (res.ok) { pedidosData = await getPedidos(); }
   else { pedidosData.unshift({ ...p, id: Date.now() }); }
-  closeModal('pedidoModal'); renderPedidosContent(); showToast('Pedido creado');
+  closeModal('pedidoModal'); 
+  renderPedidosContent(); 
+  showToast('Pedido creado');
 }
 function exportPedidos() {
   const rows = [['ID', 'Tipo', 'Cliente', 'Canal', 'Total', 'Estado']];
@@ -704,24 +662,15 @@ function exportPedidos() {
 // ============================
 //  HISTORIAL
 // ============================
+// CORRECCIÓN: Declaramos la variable ACÁ ARRIBA para que no tire error de inicialización
 let histData = [];
 let histFilter = 'todos';
 
 async function renderHistorial() {
   document.getElementById('topbarActions').innerHTML = `<button class="btn-out" onclick="exportHistorial()">Exportar</button>`;
   histData = await getVentas();
-  if (!histData.length) histData = getSampleHist();
+  if (!histData) histData = []; 
   renderHistContent();
-}
-
-function getSampleHist() {
-  return [
-    { id: 1, created_at: '2026-04-08T10:15', items: [{ nombre: 'Malbec Reserva', qty: 2, precio: 4800 }], total: 9600, metodo_pago: 'efectivo', estado: 'completado' },
-    { id: 2, created_at: '2026-04-08T11:30', items: [{ nombre: 'Whisky Single Malt', qty: 1, precio: 18500 }], total: 18500, metodo_pago: 'transferencia', estado: 'completado' },
-    { id: 3, created_at: '2026-04-07T09:20', items: [{ nombre: 'IPA Artesanal', qty: 4, precio: 1500 }], total: 6000, metodo_pago: 'qr', estado: 'completado' },
-    { id: 4, created_at: '2026-04-07T14:00', items: [{ nombre: 'Extra Brut Rosé', qty: 2, precio: 6200 }], total: 12400, metodo_pago: 'efectivo', estado: 'completado' },
-    { id: 5, created_at: '2026-04-06T11:00', items: [{ nombre: 'Gin Botánico', qty: 1, precio: 8900 }], total: 8900, metodo_pago: 'transferencia', estado: 'completado' },
-  ];
 }
 
 function renderHistContent() {
@@ -759,7 +708,7 @@ function renderHistContent() {
             <div class="td muted" style="font-size:11px">${Array.isArray(h.items) ? h.items.map(i => i.nombre + ' x' + i.qty).join(', ').slice(0, 60) : '-'}</div>
             <div class="td"><span class="type-badge tb-venta">${h.metodo_pago}</span></div>
             <div class="td gold">${fmt(h.total)}</div>
-            <div class="td"><span class="status-badge s-completado">${h.estado}</span></div>
+            <div class="td"><span class="status-badge s-completado">${h.estado || 'completado'}</span></div>
           </div>`).join('')}
       </div>
     </div>`;
@@ -772,23 +721,31 @@ function renderHistChart() {
   for (let i = 6; i >= 0; i--) {
     const d = new Date(); d.setDate(d.getDate() - i);
     const key = d.toISOString().slice(0, 10);
-    const val = histData.filter(h => h.created_at.slice(0, 10) === key).reduce((a, h) => a + h.total, 0);
+    const val = histData.filter(h => h.created_at && h.created_at.slice(0, 10) === key).reduce((a, h) => a + h.total, 0);
     days.push({ label: d.getDate() + '/' + String(d.getMonth() + 1).padStart(2, '0'), val });
   }
   const maxVal = Math.max(...days.map(d => d.val), 1);
   const chart = document.getElementById('histChart');
-  if (!chart) return;
-  chart.innerHTML = days.map(d => `
-    <div class="bar-col">
-      <div class="bar-val">${d.val ? fmt(d.val) : '—'}</div>
-      <div class="bar" style="height:${Math.round(d.val / maxVal * 65) + 8}px"></div>
-      <div class="bar-label">${d.label}</div>
-    </div>`).join('');
+  
+  if (chart) { // Seguro anti-errores
+    chart.innerHTML = days.map(d => `
+      <div class="bar-col">
+        <div class="bar-val">${d.val ? fmt(d.val) : '—'}</div>
+        <div class="bar" style="height:${Math.round(d.val / maxVal * 65) + 8}px"></div>
+        <div class="bar-label">${d.label}</div>
+      </div>`).join('');
+  }
 }
 
 function exportHistorial() {
   const rows = [['Fecha', 'Productos', 'Total', 'Método', 'Estado']];
-  histData.forEach(h => rows.push([h.created_at.slice(0, 16), Array.isArray(h.items) ? h.items.map(i => i.nombre + ' x' + i.qty).join(' | ') : '-', h.total, h.metodo_pago, h.estado]));
+  histData.forEach(h => rows.push([
+    h.created_at ? h.created_at.slice(0, 16) : '-', 
+    Array.isArray(h.items) ? h.items.map(i => i.nombre + ' x' + i.qty).join(' | ') : '-', 
+    h.total, 
+    h.metodo_pago, 
+    h.estado || 'completado'
+  ]));
   downloadCSV(rows, 'lembe_historial.csv');
 }
 
