@@ -419,15 +419,47 @@ function selectPM(pm) {
 async function cobrar() {
   if (!cajaPOS.length) return;
   const total = cajaPOS.reduce((a, c) => a + c.precio * c.qty, 0);
-  const venta = { items: cajaPOS.map(c => ({ id: c.id, nombre: c.nombre, qty: c.qty, precio: c.precio })), total: Math.round(total), metodo_pago: cajaPayMethod, estado: 'completado' };
-  await insertVenta(venta);
-  cajaTotales[cajaPayMethod] += total;
-  cajaVentas.unshift({ ...venta, hora: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) });
-  cajaPOS.forEach(c => { const p = cajaProducts.find(x => x.id === c.id); if (p) p.stock = Math.max(0, p.stock - c.qty); });
-  showTicket({ items: cajaPOS, total, metodo: cajaPayMethod });
-  renderCajaMetrics();
-  renderCajaHist();
-  renderPosTiles();
+  
+  // 1. Preparamos el objeto de la venta
+  const venta = { 
+    items: cajaPOS.map(c => ({ id: c.id, nombre: c.nombre, qty: c.qty, precio: c.precio })), 
+    total: Math.round(total), 
+    metodo_pago: cajaPayMethod, 
+    estado: 'completado' 
+  };
+
+  // 2. REGISTRAMOS LA VENTA Y DESCONTAMOS STOCK
+  const res = await insertVenta(venta);
+  
+  if (res.ok) {
+    // Recorremos el carrito para actualizar cada producto en Supabase
+    for (const item of cajaPOS) {
+      const prodOriginal = cajaProducts.find(p => p.id === item.id);
+      if (prodOriginal) {
+        const nuevoStock = Number(prodOriginal.stock) - Number(item.qty);
+        // Actualizamos en la base de datos
+        await upsertProducto({ 
+          id: item.id, 
+          stock: nuevoStock < 0 ? 0 : nuevoStock 
+        });
+      }
+    }
+
+    // 3. Actualización visual y ticket
+    cajaTotales[cajaPayMethod] += total;
+    cajaVentas.unshift({ ...venta, hora: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) });
+    
+    showTicket({ items: cajaPOS, total, metodo: cajaPayMethod });
+    
+    // Recargamos los productos para que el panel muestre el stock real
+    cajaProducts = await getProductos(); 
+    renderCajaMetrics();
+    renderCajaHist();
+    renderPosTiles();
+    showToast("Venta realizada y stock actualizado");
+  } else {
+    alert("Error al registrar la venta: " + res.msg);
+  }
 }
 function showTicket(v) {
   document.getElementById('ticketItems').innerHTML = v.items.map(i => `<div class="ticket-item-row"><span>${i.emoji || '🍷'} ${i.nombre} x${i.qty}</span><span>${fmt(i.precio * i.qty)}</span></div>`).join('');
