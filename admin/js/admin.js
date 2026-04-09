@@ -430,31 +430,34 @@ async function cobrar() {
     estado: 'completado'
   };
 
-  // 2. REGISTRAMOS LA VENTA Y DESCONTAMOS STOCK
-  const res = await insertVenta(venta);
 
+ // 2. REGISTRAMOS LA VENTA Y DESCONTAMOS STOCK
+  const res = await insertVenta(venta);
+  
   if (res.ok) {
-    // Recorremos el carrito para actualizar cada producto en Supabase uno por uno
+    // Recorremos el carrito para actualizar cada producto en Supabase
     for (const item of cajaPOS) {
       const prodOriginal = cajaProducts.find(p => p.id === item.id);
-      const stockAnterior = prodOriginal ? Number(prodOriginal.stock) : Number(item.stock);
-      const nuevoStock = Math.max(0, stockAnterior - Number(item.qty));
+      
+      if (prodOriginal) {
+        const nuevoStock = Math.max(0, Number(prodOriginal.stock) - Number(item.qty));
 
-      // Actualizamos en la base de datos
-      await upsertProducto({
-        id: item.id,
-        stock: nuevoStock
-      });
+        // EL TRUCO ESTÁ ACÁ: Copiamos todo el producto original y solo le pisamos el stock
+        const productoActualizado = { ...prodOriginal, stock: nuevoStock };
+
+        // Ahora sí, Supabase recibe todos los datos y no tira error 400
+        await upsertProducto(productoActualizado);
+      }
     }
 
     // 3. Actualización visual y ticket
     cajaTotales[cajaPayMethod] += total;
     cajaVentas.unshift({ ...venta, hora: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) });
-
+    
     showTicket({ items: cajaPOS, total, metodo: cajaPayMethod });
-
-    // 4. RECARGA CRÍTICA: Volvemos a pedir los datos a Supabase para refrescar la pantalla
-    cajaProducts = await getProductos();
+    
+    // 4. RECARGA CRÍTICA
+    cajaProducts = await getProductos(); 
     renderCajaMetrics();
     renderCajaHist();
     renderPosTiles();
