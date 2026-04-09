@@ -96,13 +96,19 @@ function changeQty(id, delta) {
 function renderCarrito() {
   const body = document.getElementById('carritoBody');
   const footer = document.getElementById('carritoFooter');
-  const count = cart.reduce((a, c) => a + c.qty, 0);
-  const total = cart.reduce((a, c) => a + c.precio * c.qty, 0);
+
+  // Forzamos conversión a número para evitar concatenación de texto
+  const count = cart.reduce((a, c) => a + Number(c.qty), 0);
+  const total = cart.reduce((a, c) => a + (Number(c.precio) * Number(c.qty)), 0);
 
   // Badge nav
   const badge = document.getElementById('cartCount');
-  if (count > 0) { badge.textContent = count; badge.classList.add('visible'); }
-  else { badge.classList.remove('visible'); }
+  if (count > 0) {
+    badge.textContent = count;
+    badge.classList.add('visible');
+  } else {
+    badge.classList.remove('visible');
+  }
 
   if (!cart.length) {
     body.innerHTML = '<div class="carrito-empty">Agregá productos para empezar</div>';
@@ -110,20 +116,25 @@ function renderCarrito() {
     return;
   }
 
-  body.innerHTML = cart.map(item => `
+  body.innerHTML = cart.map(item => {
+    // Cálculo de subtotal individual asegurando números
+    const subtotal = Number(item.precio) * Number(item.qty);
+
+    return `
     <div class="cart-item">
       <div class="ci-ico">${item.emoji || '🍷'}</div>
       <div class="ci-info">
         <div class="ci-name">${item.nombre}</div>
-        <div class="ci-price">$${Math.round(item.precio).toLocaleString('es-AR')} c/u</div>
+        <div class="ci-price">$${Math.round(Number(item.precio)).toLocaleString('es-AR')} c/u</div>
       </div>
       <div class="ci-controls">
         <button class="ci-btn" onclick="changeQty(${item.id},-1)">−</button>
         <span class="ci-qty">${item.qty}</span>
         <button class="ci-btn" onclick="changeQty(${item.id},1)">+</button>
       </div>
-      <div class="ci-subtotal">$${Math.round(item.precio * item.qty).toLocaleString('es-AR')}</div>
-    </div>`).join('');
+      <div class="ci-subtotal">$${Math.round(subtotal).toLocaleString('es-AR')}</div>
+    </div>`;
+  }).join('');
 
   document.getElementById('carritoTotal').textContent = `$${Math.round(total).toLocaleString('es-AR')}`;
   footer.style.display = 'block';
@@ -145,18 +156,29 @@ function openCarrito() {
 async function pedirWhatsApp() {
   if (!cart.length) return;
   const entrega = document.getElementById('entregaType').value;
-  const total = cart.reduce((a, c) => a + c.precio * c.qty, 0);
 
-  const lineas = cart.map(c => `• ${c.nombre} x${c.qty} — $${Math.round(c.precio * c.qty).toLocaleString('es-AR')}`).join('\n');
+  // Cálculo de total asegurando números
+  const total = cart.reduce((a, c) => a + (Number(c.precio) * Number(c.qty)), 0);
+
+  const lineas = cart.map(c => {
+    const subtotalItem = Number(c.precio) * Number(c.qty);
+    return `• ${c.nombre} x${c.qty} — $${Math.round(subtotalItem).toLocaleString('es-AR')}`;
+  }).join('\n');
+
   const msg = `¡Hola Lembe! 🍷 Me gustaría hacer el siguiente pedido:\n\n${lineas}\n\n*Total: $${Math.round(total).toLocaleString('es-AR')}*\n📦 Entrega: ${entrega}\n\n¿Podés confirmarme disponibilidad?`;
 
-  // Guardar pedido en Supabase
+  // Guardar pedido en Supabase con datos numéricos limpios
   await insertPedido({
     tipo: 'pedido',
     cliente: 'Cliente web',
     telefono: '',
     canal: 'Web / WhatsApp',
-    items: cart.map(c => ({ id: c.id, nombre: c.nombre, qty: c.qty, precio: c.precio })),
+    items: cart.map(c => ({
+      id: c.id,
+      nombre: c.nombre,
+      qty: Number(c.qty),
+      precio: Number(c.precio)
+    })),
     total: Math.round(total),
     entrega,
     estado: 'nuevo',
