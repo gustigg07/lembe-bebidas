@@ -431,14 +431,14 @@ async function cobrar() {
   };
 
 
- // 2. REGISTRAMOS LA VENTA Y DESCONTAMOS STOCK
+  // 2. REGISTRAMOS LA VENTA Y DESCONTAMOS STOCK
   const res = await insertVenta(venta);
-  
+
   if (res.ok) {
     // Recorremos el carrito para actualizar cada producto en Supabase
     for (const item of cajaPOS) {
       const prodOriginal = cajaProducts.find(p => p.id === item.id);
-      
+
       if (prodOriginal) {
         const nuevoStock = Math.max(0, Number(prodOriginal.stock) - Number(item.qty));
 
@@ -453,11 +453,11 @@ async function cobrar() {
     // 3. Actualización visual y ticket
     cajaTotales[cajaPayMethod] += total;
     cajaVentas.unshift({ ...venta, hora: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) });
-    
+
     showTicket({ items: cajaPOS, total, metodo: cajaPayMethod });
-    
+
     // 4. RECARGA CRÍTICA
-    cajaProducts = await getProductos(); 
+    cajaProducts = await getProductos();
     renderCajaMetrics();
     renderCajaHist();
     renderPosTiles();
@@ -517,30 +517,30 @@ async function renderPedidosPage() {
 }
 
 function renderPedidosContent() {
+  // 1. Filtramos cuáles son los pedidos que están en curso (ni entregados ni cancelados)
   const acts = pedidosData.filter(p => !['entregado', 'cancelado'].includes(p.estado));
   const reservas = pedidosData.filter(p => p.tipo === 'reserva' && !['entregado', 'cancelado'].includes(p.estado));
-  
-  // Sumamos la plata solo de los pedidos válidos
-  const pedidosValidos = pedidosData.filter(p => p.estado !== 'cancelado');
-  const hoyTotal = pedidosValidos.reduce((a, p) => a + (Number(p.total) || 0), 0);
+
+  // 2. CORRECCIÓN: Sumamos el dinero SOLAMENTE de los pedidos activos (en curso)
+  const dineroActivos = acts.reduce((a, p) => a + (Number(p.total) || 0), 0);
 
   const container = document.getElementById('pageContent');
   if (!container) return; // Seguro anti-errores
 
-  // 1. Inyectamos la estructura base, ASEGURANDO que exista <div id="pedidosView"></div>
+  // 3. Inyectamos la estructura base actualizando los valores de las métricas
   container.innerHTML = `
     <div class="metrics" style="margin-bottom:1rem">
       <div class="metric"><div class="metric-label">Activos</div><div class="metric-val" style="color:var(--gold)">${acts.length}</div></div>
-      <div class="metric"><div class="metric-label">Total</div><div class="metric-val" style="color:#4CAF50;font-size:1.2rem">${fmt(hoyTotal)}</div></div>
+      <div class="metric"><div class="metric-label">Total en Curso</div><div class="metric-val" style="color:#4CAF50;font-size:1.2rem">${fmt(dineroActivos)}</div></div>
       <div class="metric"><div class="metric-label">Reservas</div><div class="metric-val" style="color:#9B59B6">${reservas.length}</div></div>
-      <div class="metric"><div class="metric-label">Total pedidos</div><div class="metric-val">${pedidosData.length}</div></div>
+      <div class="metric"><div class="metric-label">Histórico (Cant.)</div><div class="metric-val">${pedidosData.length}</div></div>
     </div>
     <div style="display:flex;gap:0;border-bottom:0.5px solid var(--border);margin-bottom:1.5rem">
       <button class="filter-btn ${pedidosTab === 'kanban' ? 'active' : ''}" style="border-bottom:none" onclick="pedidosTab='kanban';renderPedidosContent()">Kanban</button>
       <button class="filter-btn ${pedidosTab === 'lista' ? 'active' : ''}" style="border-bottom:none" onclick="pedidosTab='lista';renderPedidosContent()">Lista</button>
     </div>
     
-    <div id="pedidosView"></div> 
+    <div id="pedidosView"></div>
 
     <div class="modal-bg" id="pedidoModal" onclick="if(event.target===this)closeModal('pedidoModal')">
       <div class="modal">
@@ -577,15 +577,15 @@ function renderPedidosContent() {
           <div class="col-body">
             ${cards.length === 0 ? '<div style="padding:.8rem;text-align:center;font-size:11px;color:var(--muted)">Sin pedidos</div>' : ''}
             ${cards.map(p => {
-              // Convertimos el array de items a texto legible
-              let listaItems = '';
-              if (Array.isArray(p.items)) {
-                listaItems = p.items.map(i => `• ${i.nombre} x${i.qty}`).join('<br>');
-              } else {
-                listaItems = String(p.items || 'Sin detalle').slice(0, 50);
-              }
+          // Convertimos el array de items a texto legible
+          let listaItems = '';
+          if (Array.isArray(p.items)) {
+            listaItems = p.items.map(i => `• ${i.nombre} x${i.qty}`).join('<br>');
+          } else {
+            listaItems = String(p.items || 'Sin detalle').slice(0, 50);
+          }
 
-              return `
+          return `
               <div class="kcard">
                 <div class="kcard-top"><span class="kcard-id">#${p.id}</span><span class="type-badge tb-${p.tipo}">${p.tipo}</span></div>
                 <div class="kcard-name">${p.cliente}</div>
@@ -597,7 +597,7 @@ function renderPedidosContent() {
                   <button class="act-btn" onclick="nextPedidoStatus(${p.id})" title="Avanzar estado" style="font-size:10px">→</button>
                 </div>
               </div>`
-            }).join('')}
+        }).join('')}
           </div>
         </div>`;
       }).join('')}</div>`;
@@ -626,10 +626,10 @@ async function nextPedidoStatus(id) {
   const p = pedidosData.find(x => x.id === id);
   if (!p) return;
   const idx = estadosCycle.indexOf(p.estado);
-  if (idx < estadosCycle.length - 2) { 
-    p.estado = estadosCycle[idx + 1]; 
-    await updatePedidoEstado(id, p.estado); 
-    renderPedidosContent(); 
+  if (idx < estadosCycle.length - 2) {
+    p.estado = estadosCycle[idx + 1];
+    await updatePedidoEstado(id, p.estado);
+    renderPedidosContent();
   }
 }
 
@@ -649,8 +649,8 @@ async function savePedido() {
   const res = await insertPedido(p);
   if (res.ok) { pedidosData = await getPedidos(); }
   else { pedidosData.unshift({ ...p, id: Date.now() }); }
-  closeModal('pedidoModal'); 
-  renderPedidosContent(); 
+  closeModal('pedidoModal');
+  renderPedidosContent();
   showToast('Pedido creado');
 }
 function exportPedidos() {
@@ -669,7 +669,7 @@ let histFilter = 'todos';
 async function renderHistorial() {
   document.getElementById('topbarActions').innerHTML = `<button class="btn-out" onclick="exportHistorial()">Exportar</button>`;
   histData = await getVentas();
-  if (!histData) histData = []; 
+  if (!histData) histData = [];
   renderHistContent();
 }
 
@@ -726,7 +726,7 @@ function renderHistChart() {
   }
   const maxVal = Math.max(...days.map(d => d.val), 1);
   const chart = document.getElementById('histChart');
-  
+
   if (chart) { // Seguro anti-errores
     chart.innerHTML = days.map(d => `
       <div class="bar-col">
@@ -740,10 +740,10 @@ function renderHistChart() {
 function exportHistorial() {
   const rows = [['Fecha', 'Productos', 'Total', 'Método', 'Estado']];
   histData.forEach(h => rows.push([
-    h.created_at ? h.created_at.slice(0, 16) : '-', 
-    Array.isArray(h.items) ? h.items.map(i => i.nombre + ' x' + i.qty).join(' | ') : '-', 
-    h.total, 
-    h.metodo_pago, 
+    h.created_at ? h.created_at.slice(0, 16) : '-',
+    Array.isArray(h.items) ? h.items.map(i => i.nombre + ' x' + i.qty).join(' | ') : '-',
+    h.total,
+    h.metodo_pago,
     h.estado || 'completado'
   ]));
   downloadCSV(rows, 'lembe_historial.csv');
