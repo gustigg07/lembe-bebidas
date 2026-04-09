@@ -157,6 +157,13 @@ async function renderStock() {
           <div class="form-row"><label class="form-label">Origen</label><input class="form-input" id="sf-origen" placeholder="Mendoza, Argentina"></div>
           <div class="form-row"><label class="form-label">Emoji</label><input class="form-input" id="sf-emoji" placeholder="🍷" maxlength="4"></div>
         </div>
+        
+        <div class="form-row">
+          <label class="form-label">Foto del producto (Opcional)</label>
+          <input class="form-input" type="file" id="sf-img" accept="image/*" style="padding: 8px; cursor: pointer;">
+          <input type="hidden" id="sf-img-url">
+        </div>
+        
         <div class="modal-footer">
           <button class="btn-out" onclick="closeModal('stockModal')">Cancelar</button>
           <button class="btn" onclick="saveStockProduct()">Guardar</button>
@@ -249,6 +256,7 @@ async function saveStockProduct() {
     stock_minimo: parseInt(document.getElementById('sf-min').value) || 5,
     origen: document.getElementById('sf-origen').value.trim(),
     emoji: document.getElementById('sf-emoji').value.trim() || '🍷',
+    imagen_url: imagen_url
   };
   if (editingStockId) prod.id = editingStockId;
   const res = await upsertProducto(prod);
@@ -271,6 +279,30 @@ function exportStock() {
   stockProducts.forEach(p => rows.push([p.nombre, p.categoria, p.stock, p.stock_minimo, p.precio, getStockStatus(p)]));
   downloadCSV(rows, 'lembe_stock.csv');
 }
+async function uploadProductImage(file) {
+  showToast("Subiendo imagen...");
+  // Creamos un nombre único para la foto
+  const fileExt = file.name.split('.').pop();
+  const fileName = `${Date.now()}.${fileExt}`;
+
+  // Subimos al bucket 'productos'
+  const { data, error } = await supabase.storage
+    .from('productos')
+    .upload(fileName, file);
+
+  if (error) {
+    alert("Error al subir imagen: " + error.message);
+    return null;
+  }
+
+  // Obtenemos el link público
+  const { data: urlData } = supabase.storage
+    .from('productos')
+    .getPublicUrl(fileName);
+    
+  return urlData.publicUrl;
+}
+
 
 // ============================
 //  CATÁLOGO (simplificado, reutiliza stock)

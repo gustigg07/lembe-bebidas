@@ -39,12 +39,20 @@ function renderProducts(cat) {
   grid.innerHTML = list.map(p => {
     const sinStock = p.stock === 0;
     const precio = `$${Math.round(p.precio).toLocaleString('es-AR')}`;
+    
+    // ✨ MAGIA DE LA IMAGEN: Si hay URL, ponemos la etiqueta <img>. Si no, ponemos el emoji original.
+    const imagenVisual = p.imagen_url 
+      ? `<img src="${p.imagen_url}" alt="${p.nombre}" style="width: 100%; height: 100%; object-fit: cover; position: absolute; top: 0; left: 0; border-radius: inherit;">`
+      : `<span style="font-size: 3rem; position: relative; z-index: 1;">${p.emoji || '🍷'}</span>`;
+
     return `
       <div class="prod">
-        <div class="prod-img">
-          ${p.emoji || '🍷'}
-          ${p.destacado ? '<span class="prod-badge">Destacado</span>' : ''}
-          ${sinStock ? '<span class="prod-out">Sin stock</span>' : ''}
+        <div class="prod-img" style="position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; min-height: 150px;">
+          
+          ${imagenVisual}
+          
+          ${p.destacado ? '<span class="prod-badge" style="position: relative; z-index: 2;">Destacado</span>' : ''}
+          ${sinStock ? '<span class="prod-out" style="position: relative; z-index: 2;">Sin stock</span>' : ''}
         </div>
         <div class="prod-body">
           <div class="prod-region">${p.origen || ''}</div>
@@ -58,7 +66,6 @@ function renderProducts(cat) {
       </div>`;
   }).join('');
 }
-
 // ---- TABS ----
 function initTabs() {
   document.getElementById('catTabs').addEventListener('click', e => {
