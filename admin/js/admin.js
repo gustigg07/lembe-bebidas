@@ -416,43 +416,45 @@ function selectPM(pm) {
   cajaPayMethod = pm;
   ['efectivo', 'transferencia', 'qr'].forEach(m => document.getElementById('pm-' + m)?.classList.toggle('sel', m === pm));
 }
+
 async function cobrar() {
   if (!cajaPOS.length) return;
-  const total = cajaPOS.reduce((a, c) => a + c.precio * c.qty, 0);
-  
+  // Aseguramos que la suma sea matemática y no de texto
+  const total = cajaPOS.reduce((a, c) => a + (Number(c.precio) * Number(c.qty)), 0);
+
   // 1. Preparamos el objeto de la venta
-  const venta = { 
-    items: cajaPOS.map(c => ({ id: c.id, nombre: c.nombre, qty: c.qty, precio: c.precio })), 
-    total: Math.round(total), 
-    metodo_pago: cajaPayMethod, 
-    estado: 'completado' 
+  const venta = {
+    items: cajaPOS.map(c => ({ id: c.id, nombre: c.nombre, qty: Number(c.qty), precio: Number(c.precio) })),
+    total: Math.round(total),
+    metodo_pago: cajaPayMethod,
+    estado: 'completado'
   };
 
   // 2. REGISTRAMOS LA VENTA Y DESCONTAMOS STOCK
   const res = await insertVenta(venta);
-  
+
   if (res.ok) {
-    // Recorremos el carrito para actualizar cada producto en Supabase
+    // Recorremos el carrito para actualizar cada producto en Supabase uno por uno
     for (const item of cajaPOS) {
       const prodOriginal = cajaProducts.find(p => p.id === item.id);
-      if (prodOriginal) {
-        const nuevoStock = Number(prodOriginal.stock) - Number(item.qty);
-        // Actualizamos en la base de datos
-        await upsertProducto({ 
-          id: item.id, 
-          stock: nuevoStock < 0 ? 0 : nuevoStock 
-        });
-      }
+      const stockAnterior = prodOriginal ? Number(prodOriginal.stock) : Number(item.stock);
+      const nuevoStock = Math.max(0, stockAnterior - Number(item.qty));
+
+      // Actualizamos en la base de datos
+      await upsertProducto({
+        id: item.id,
+        stock: nuevoStock
+      });
     }
 
     // 3. Actualización visual y ticket
     cajaTotales[cajaPayMethod] += total;
     cajaVentas.unshift({ ...venta, hora: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) });
-    
+
     showTicket({ items: cajaPOS, total, metodo: cajaPayMethod });
-    
-    // Recargamos los productos para que el panel muestre el stock real
-    cajaProducts = await getProductos(); 
+
+    // 4. RECARGA CRÍTICA: Volvemos a pedir los datos a Supabase para refrescar la pantalla
+    cajaProducts = await getProductos();
     renderCajaMetrics();
     renderCajaHist();
     renderPosTiles();
