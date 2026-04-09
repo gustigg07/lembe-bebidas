@@ -152,32 +152,45 @@ function openCarrito() {
   document.getElementById('carritoOverlay').classList.add('open');
 }
 
-// ---- WHATSAPP ----
 async function pedirWhatsApp() {
   if (!cart.length) return;
   const entrega = document.getElementById('entregaType').value;
-
+  
   // Cálculo de total asegurando números
   const total = cart.reduce((a, c) => a + (Number(c.precio) * Number(c.qty)), 0);
 
+  // 1. DESCONTAR STOCK EN SUPABASE (Asegurando el objeto completo)
+  for (const item of cart) {
+    // Buscamos el producto en la lista global de la web
+    const prodOriginal = allProducts.find(p => p.id === item.id);
+    if (prodOriginal) {
+      const nuevoStock = Math.max(0, Number(prodOriginal.stock) - Number(item.qty));
+      
+      // Armamos el producto completo con el stock pisado para evitar el error 400
+      const productoActualizado = { ...prodOriginal, stock: nuevoStock };
+      await upsertProducto(productoActualizado);
+    }
+  }
+
+  // 2. Armar las líneas para el mensaje
   const lineas = cart.map(c => {
     const subtotalItem = Number(c.precio) * Number(c.qty);
     return `• ${c.nombre} x${c.qty} — $${Math.round(subtotalItem).toLocaleString('es-AR')}`;
   }).join('\n');
-
+  
   const msg = `¡Hola Lembe! 🍷 Me gustaría hacer el siguiente pedido:\n\n${lineas}\n\n*Total: $${Math.round(total).toLocaleString('es-AR')}*\n📦 Entrega: ${entrega}\n\n¿Podés confirmarme disponibilidad?`;
 
-  // Guardar pedido en Supabase con datos numéricos limpios
+  // 3. Guardar pedido en Supabase
   await insertPedido({
     tipo: 'pedido',
     cliente: 'Cliente web',
     telefono: '',
     canal: 'Web / WhatsApp',
-    items: cart.map(c => ({
-      id: c.id,
-      nombre: c.nombre,
-      qty: Number(c.qty),
-      precio: Number(c.precio)
+    items: cart.map(c => ({ 
+      id: c.id, 
+      nombre: c.nombre, 
+      qty: Number(c.qty), 
+      precio: Number(c.precio) 
     })),
     total: Math.round(total),
     entrega,
@@ -185,7 +198,14 @@ async function pedirWhatsApp() {
     notas: 'Pedido generado desde la web'
   });
 
+  // 4. Redirigir a WhatsApp
   window.open(`https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(msg)}`, '_blank');
+  
+  // 5. Limpiar carrito y actualizar vista web
+  cart = []; 
+  renderCarrito();
+  toggleCarrito();
+  await loadProducts(); // Recargamos para que el cliente vea el nuevo stock
 }
 
 // ---- HISTORIA INTERACTIVA ----
