@@ -249,23 +249,42 @@ async function adjStock(id, delta) {
 async function saveStockProduct() {
   const nombre = document.getElementById('sf-nombre').value.trim();
   if (!nombre) { alert('Ingresá el nombre'); return; }
+
+  // 1. Preparamos la variable para la URL de la imagen (por defecto vacía)
+  let url_final = document.getElementById('sf-img-url') ? document.getElementById('sf-img-url').value : null;
+  const fileInput = document.getElementById('sf-img');
+
+  // 2. Si el usuario seleccionó una foto en el cuadrito, la subimos a Supabase
+  if (fileInput && fileInput.files && fileInput.files[0]) {
+    const nuevaUrl = await uploadProductImage(fileInput.files[0]);
+    if (nuevaUrl) {
+      url_final = nuevaUrl; // Guardamos el link que nos devuelve Supabase
+    }
+  }
+
+  // 3. Armamos el objeto con todos tus campos
   const prod = {
-    nombre, categoria: document.getElementById('sf-cat').value,
+    nombre, 
+    categoria: document.getElementById('sf-cat').value,
     precio: parseFloat(document.getElementById('sf-precio').value) || 0,
     stock: parseInt(document.getElementById('sf-stock').value) || 0,
     stock_minimo: parseInt(document.getElementById('sf-min').value) || 5,
     origen: document.getElementById('sf-origen').value.trim(),
     emoji: document.getElementById('sf-emoji').value.trim() || '🍷',
-    imagen_url: imagen_url
+    imagen_url: url_final // <--- Ahora sí sabe qué guardar
   };
+
   if (editingStockId) prod.id = editingStockId;
+  
   const res = await upsertProducto(prod);
   if (res.ok) {
     closeModal('stockModal');
     stockProducts = await getProductos();
     renderStockTable();
     showToast(editingStockId ? 'Producto actualizado' : 'Producto agregado');
-  } else { showToast('Error: ' + res.msg); }
+  } else { 
+    showToast('Error: ' + res.msg); 
+  }
 }
 async function delStockProduct(id) {
   if (!confirm('¿Eliminar este producto?')) return;
