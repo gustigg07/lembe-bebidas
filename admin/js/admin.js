@@ -625,11 +625,38 @@ function renderPedidosContent() {
 async function nextPedidoStatus(id) {
   const p = pedidosData.find(x => x.id === id);
   if (!p) return;
+  
   const idx = estadosCycle.indexOf(p.estado);
-  if (idx < estadosCycle.length - 2) {
-    p.estado = estadosCycle[idx + 1];
-    await updatePedidoEstado(id, p.estado);
-    renderPedidosContent();
+  
+  // Aseguramos que pueda avanzar hasta el estado "entregado"
+  if (idx < estadosCycle.indexOf('entregado')) { 
+    const nuevoEstado = estadosCycle[idx + 1];
+    
+    // SI EL PEDIDO LLEGA A ENTREGADO -> LO PASAMOS A LA CAJA (HISTORIAL)
+    if (nuevoEstado === 'entregado') {
+      const confirmar = confirm(`¿Marcar como ENTREGADO y sumar ${fmt(p.total)} al Historial de hoy?`);
+      if (!confirmar) return; // Si apretás cancelar, no hace nada
+
+      // Armamos el ticket para el Historial
+      const venta = {
+        // Si tiene items los pasamos, si no, le ponemos un nombre genérico
+        items: Array.isArray(p.items) ? p.items : [{ nombre: 'Pedido de ' + p.cliente, qty: 1, precio: p.total }],
+        total: Number(p.total),
+        metodo_pago: 'transferencia', // Lo ponemos por defecto así, o "qr"
+        estado: 'completado'
+      };
+      
+      // Lo inyectamos en la tabla de Ventas para que aparezca en el Historial
+      await insertVenta(venta);
+      showToast("¡Pedido cobrado y enviado al historial!");
+    }
+
+    // Actualizamos el estado del pedido a "entregado" para que desaparezca de la columna Activos
+    p.estado = nuevoEstado; 
+    await updatePedidoEstado(id, nuevoEstado); 
+    
+    // Refrescamos la vista
+    renderPedidosContent(); 
   }
 }
 
