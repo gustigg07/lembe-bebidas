@@ -628,30 +628,40 @@ async function nextPedidoStatus(id) {
   
   const idx = estadosCycle.indexOf(p.estado);
   
-  // Aseguramos que pueda avanzar hasta el estado "entregado"
   if (idx < estadosCycle.indexOf('entregado')) { 
     const nuevoEstado = estadosCycle[idx + 1];
     
-    // SI EL PEDIDO LLEGA A ENTREGADO -> LO PASAMOS A LA CAJA (HISTORIAL)
+    // SI EL PEDIDO LLEGA A ENTREGADO -> PREGUNTAMOS EL MÉTODO DE PAGO
     if (nuevoEstado === 'entregado') {
       const confirmar = confirm(`¿Marcar como ENTREGADO y sumar ${fmt(p.total)} al Historial de hoy?`);
-      if (!confirmar) return; // Si apretás cancelar, no hace nada
+      if (!confirmar) return; // Si apretás cancelar, aborta
+
+      // Pedimos que ingrese el método de pago
+      const metodoInput = prompt(
+        "¿Cómo pagó el cliente?\n\nIngresá el número:\n1 = Efectivo\n2 = Transferencia\n3 = QR / Débito", 
+        "1"
+      );
+      
+      if (metodoInput === null) return; // Si cierra la ventana, aborta
+
+      // Asignamos el método según lo que escribió
+      let metodoElegido = 'efectivo'; // por defecto
+      if (metodoInput === '2' || metodoInput.toLowerCase().includes('trans')) metodoElegido = 'transferencia';
+      if (metodoInput === '3' || metodoInput.toLowerCase().includes('qr')) metodoElegido = 'qr';
 
       // Armamos el ticket para el Historial
       const venta = {
-        // Si tiene items los pasamos, si no, le ponemos un nombre genérico
         items: Array.isArray(p.items) ? p.items : [{ nombre: 'Pedido de ' + p.cliente, qty: 1, precio: p.total }],
         total: Number(p.total),
-        metodo_pago: 'transferencia', // Lo ponemos por defecto así, o "qr"
+        metodo_pago: metodoElegido, // ACÁ USAMOS LO QUE ELEGISTE
         estado: 'completado'
       };
       
-      // Lo inyectamos en la tabla de Ventas para que aparezca en el Historial
       await insertVenta(venta);
-      showToast("¡Pedido cobrado y enviado al historial!");
+      showToast(`¡Cobrado con ${metodoElegido}!`);
     }
 
-    // Actualizamos el estado del pedido a "entregado" para que desaparezca de la columna Activos
+    // Actualizamos el estado del pedido
     p.estado = nuevoEstado; 
     await updatePedidoEstado(id, nuevoEstado); 
     
