@@ -87,7 +87,7 @@ function showApp() {
   // Formateamos el email para que quede más lindo (ej: admin@lembe... -> Admin)
   const displayName = currentUser.nombre.split('@')[0];
   document.getElementById('sbUser').textContent = displayName.charAt(0).toUpperCase() + displayName.slice(1);
-  goPage('stock');
+  goPage('Ventas y Caja');
 }
 
 // ✅ ACTUALIZADO: Cierre de sesión de Supabase
