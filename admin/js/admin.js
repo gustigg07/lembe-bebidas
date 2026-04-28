@@ -7,6 +7,12 @@ console.log("ADMIN.JS CARGADO CORRECTAMENTE");
 
 let currentPage = 'stock';
 
+// ---- PROTECCIÓN DE STOCK ----
+// El email del dueño se crea en Supabase → Authentication → Users
+// La contraseña NUNCA aparece en el código. Supabase la verifica del lado del servidor.
+const STOCK_OWNER_EMAIL = "stock@lembe.com"; // ← cambiá por el email que pusiste en Supabase
+let stockDesbloqueado = false;
+
 // ---- INICIO / VERIFICAR SESIÓN ----
 document.addEventListener('DOMContentLoaded', () => {
   initSupabase();
@@ -19,9 +25,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Enter') intentarLogin(e);
   });
 
-  // Sidebar nav
+  // Sidebar nav — stock requiere contraseña del dueño
   document.querySelectorAll('.sb-item[data-page]').forEach(item => {
-    item.addEventListener('click', () => goPage(item.dataset.page));
+    item.addEventListener('click', () => {
+      if (item.dataset.page === 'stock' && !stockDesbloqueado) {
+        mostrarModalPasswordStock();
+      } else {
+        goPage(item.dataset.page);
+      }
+    });
   });
 });
 
@@ -89,6 +101,8 @@ async function cerrarSesion() {
 
 // ---- NAVIGATION ----
 function goPage(page) {
+  // Si el usuario navega a otra sección, pedimos contraseña la próxima vez que vuelva a stock
+  if (page !== 'stock') stockDesbloqueado = false;
   currentPage = page;
   document.querySelectorAll('.sb-item').forEach(i => i.classList.toggle('active', i.dataset.page === page));
   const titles = { stock: 'Control de Stock', catalogo: 'Catálogo de Productos', caja: 'Ventas y Caja', pedidos: 'Pedidos y Reservas', historial: 'Historial', config: 'Configuración' };
@@ -106,6 +120,171 @@ function showToast(msg) {
 }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 function openModal(id) { document.getElementById(id).classList.add('open'); }
+
+// ============================
+//  PROTECCIÓN DE STOCK — Modal de contraseña segura
+//  La verificación ocurre en el servidor de Supabase.
+//  Nadie puede ver la contraseña inspeccionando el código.
+// ============================
+
+function mostrarModalPasswordStock() {
+  if (!document.getElementById('stockPasswordModal')) {
+    const modal = document.createElement('div');
+    modal.id = 'stockPasswordModal';
+    modal.style.cssText = `
+      position: fixed; inset: 0; z-index: 999;
+      background: rgba(0,0,0,0.82);
+      backdrop-filter: blur(8px);
+      display: flex; align-items: center; justify-content: center;
+    `;
+    modal.innerHTML = `
+      <div style="
+        background: var(--dark, #111);
+        border: 0.5px solid var(--border, #2a2a2a);
+        padding: 2.5rem;
+        width: 100%;
+        max-width: 360px;
+        text-align: center;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+      ">
+        <div style="font-size:2rem;margin-bottom:1rem">🔒</div>
+
+        <div style="
+          font-family:'Playfair Display',serif;
+          font-size:1.3rem;
+          color:var(--cream,#f0e8d8);
+          margin-bottom:.4rem;
+        ">Control de Stock</div>
+
+        <div style="
+          font-size:10px;
+          letter-spacing:.25em;
+          color:var(--muted,#666);
+          text-transform:uppercase;
+          margin-bottom:2rem;
+        ">Área restringida · Solo dueño</div>
+
+        <input
+          id="stockPassInput"
+          type="password"
+          placeholder="Contraseña"
+          autocomplete="current-password"
+          style="
+            width:100%;
+            background:transparent;
+            border:none;
+            border-bottom:1px solid var(--border,#2a2a2a);
+            color:var(--cream,#f0e8d8);
+            font-size:1.1rem;
+            padding:.6rem 0;
+            text-align:center;
+            outline:none;
+            letter-spacing:.2em;
+            margin-bottom:.5rem;
+            transition:border-color .3s;
+          "
+        />
+
+        <div id="stockPassError" style="
+          color:#e05555;
+          font-size:11px;
+          min-height:20px;
+          margin-bottom:1.2rem;
+          letter-spacing:.1em;
+        "></div>
+
+        <div id="stockPassLoader" style="
+          display:none;
+          font-size:11px;
+          letter-spacing:.2em;
+          color:var(--muted,#666);
+          text-transform:uppercase;
+          margin-bottom:1rem;
+        ">Verificando...</div>
+
+        <div style="display:flex;gap:.8rem;">
+          <button onclick="cerrarModalPasswordStock()" style="
+            flex:1;padding:.75rem;
+            background:transparent;
+            border:0.5px solid var(--border,#2a2a2a);
+            color:var(--muted,#666);
+            font-size:11px;letter-spacing:.2em;
+            text-transform:uppercase;cursor:pointer;
+          ">Cancelar</button>
+
+          <button id="stockPassBtn" onclick="verificarPasswordStock()" style="
+            flex:1;padding:.75rem;
+            background:var(--gold,#c9a84c);
+            border:none;color:#000;
+            font-size:11px;font-weight:600;
+            letter-spacing:.2em;
+            text-transform:uppercase;cursor:pointer;
+          ">Ingresar</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    // Enter para confirmar
+    document.getElementById('stockPassInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') verificarPasswordStock();
+    });
+
+    // Highlight del input al hacer foco
+    document.getElementById('stockPassInput').addEventListener('focus', e => {
+      e.target.style.borderBottomColor = 'var(--gold,#c9a84c)';
+    });
+    document.getElementById('stockPassInput').addEventListener('blur', e => {
+      e.target.style.borderBottomColor = 'var(--border,#2a2a2a)';
+    });
+  }
+
+  // Mostramos y reseteamos estado
+  document.getElementById('stockPasswordModal').style.display = 'flex';
+  document.getElementById('stockPassInput').value = '';
+  document.getElementById('stockPassError').textContent = '';
+  document.getElementById('stockPassLoader').style.display = 'none';
+  document.getElementById('stockPassBtn').disabled = false;
+  setTimeout(() => document.getElementById('stockPassInput').focus(), 100);
+}
+
+// La contraseña la verifica Supabase del lado del servidor.
+// Nadie puede verla inspeccionando el código.
+async function verificarPasswordStock() {
+  const password = document.getElementById('stockPassInput').value;
+
+  if (!password) {
+    document.getElementById('stockPassError').textContent = 'Ingresá la contraseña';
+    return;
+  }
+
+  document.getElementById('stockPassLoader').style.display = 'block';
+  document.getElementById('stockPassError').textContent = '';
+  document.getElementById('stockPassBtn').disabled = true;
+
+  const { error } = await supabase.auth.signInWithPassword({
+    email: STOCK_OWNER_EMAIL,
+    password: password,
+  });
+
+  document.getElementById('stockPassLoader').style.display = 'none';
+  document.getElementById('stockPassBtn').disabled = false;
+
+  if (error) {
+    document.getElementById('stockPassError').textContent = 'Contraseña incorrecta';
+    document.getElementById('stockPassInput').value = '';
+    document.getElementById('stockPassInput').focus();
+  } else {
+    stockDesbloqueado = true;
+    cerrarModalPasswordStock();
+    goPage('stock');
+  }
+}
+
+function cerrarModalPasswordStock() {
+  const modal = document.getElementById('stockPasswordModal');
+  if (modal) modal.style.display = 'none';
+}
 
 // ============================
 //  STOCK
