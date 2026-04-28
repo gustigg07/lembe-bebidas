@@ -2,7 +2,7 @@
 //  LEMBE BEBIDAS — web.js
 // ===========================
 
-const WA_NUMBER = '393393372014'; // <-- Reemplazá con el número de WhatsApp del local (sin + ni espacios)
+const WA_NUMBER = '5492615456762'; // <-- Reemplazá con el número de WhatsApp del local (sin + ni espacios)
 
 let cart = [];
 let allProducts = [];
