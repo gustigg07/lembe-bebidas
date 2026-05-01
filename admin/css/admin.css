@@ -1405,3 +1405,16 @@ body {
   border-radius: 6px;
   margin-bottom: 8px;
 }
+
+/* Fuerza el ancho del modal de flujo */
+#flujoModal .modal {
+    max-width: 950px !important; /* Más ancho que el estándar de 480px */
+    width: 95%;
+}
+
+/* Mantiene el texto en una sola línea */
+#flujoModal .td {
+    white-space: nowrap; 
+    overflow: hidden;
+    text-overflow: ellipsis; 
+}
