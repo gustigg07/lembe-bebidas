@@ -85,47 +85,26 @@ async function getVentas(fechaDesde = null) {
   const { data, error } = await query;
   return error ? [] : data;
 }
+
+// =============================================
+//  MOVIMIENTOS DE CAJA
+// =============================================
+
 async function getMovimientos(fechaDesde = null) {
   if (!supabase) return [];
-  let query = supabase.from('movimientos_caja').select('*').order('created_at', { ascending: true });
+  let query = supabase.from('movimientos_caja').select('*').order('created_at', { ascending: false });
   if (fechaDesde) query = query.gte('created_at', fechaDesde);
   const { data, error } = await query;
-  return error ? [] : data;
-}
-
-async function insertMovimiento(mov) {
-  if (!supabase) return { ok: false };
-  const { data, error } = await supabase.from('movimientos_caja').insert(mov).select();
-  return error ? { ok: false, msg: error.message } : { ok: true, data };
-}
-// ✅ Obtener movimientos de la base de datos
-async function getMovimientos(fechaDesde = null) {
-  if (!supabase) return [];
-  
-  let query = supabase.from('movimientos_caja').select('*').order('created_at', { ascending: true });
-  
-  // Si pasamos una fecha, filtramos para no traer años de historial innecesario
-  if (fechaDesde) {
-    query = query.gte('created_at', fechaDesde);
-  }
-  
-  const { data, error } = await query;
-  
-  if (error) {
-    console.error("Error en getMovimientos:", error.message);
-    return [];
-  }
+  if (error) { console.error('getMovimientos error:', error); return []; }
   return data;
 }
 
-// ✅ Insertar un nuevo movimiento (Apertura, Egreso, Ingreso, etc.)
-async function insertMovimiento(mov) {
+async function insertMovimiento(movimiento) {
   if (!supabase) return { ok: false, msg: 'Sin conexión a Supabase' };
-  
-  const { data, error } = await supabase.from('movimientos_caja').insert(mov).select();
-  
+  const { data, error } = await supabase.from('movimientos_caja').insert(movimiento).select();
   return error ? { ok: false, msg: error.message } : { ok: true, data };
 }
+
 // =============================================
 //  DATOS LOCALES (fallback sin Supabase)
 // =============================================
@@ -187,6 +166,17 @@ create table ventas (
   total numeric not null,
   metodo_pago text default 'efectivo',
   estado text default 'completado',
+  created_at timestamptz default now()
+);
+
+-- Tabla movimientos_caja
+create table movimientos_caja (
+  id bigint generated always as identity primary key,
+  tipo text not null, -- 'apertura', 'ingreso', 'egreso', 'cierre'
+  descripcion text not null,
+  monto numeric not null,
+  metodo_pago text default 'efectivo',
+  usuario text,
   created_at timestamptz default now()
 );
 
