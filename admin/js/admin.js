@@ -628,10 +628,17 @@ async function cargarDatosDelDia() {
 
 // ✅ 2. OBLIGAMOS AL MODAL A ACTUALIZARSE ANTES DE ABRIRSE
 async function verFlujoDia() {
-  // 🔥 MAGIA ACÁ: Le decimos que descargue todo de nuevo JUSTO antes de abrir la ventana
+  // 🔥 MAGIA: Sincroniza datos antes de abrir para mostrar lo último cargado
   await cargarDatosDelDia(); 
   
   const flujo = armarFlujoOrdenado();
+  
+  // 📏 AJUSTE DE ANCHO: Forzamos al modal a ser más ancho (950px)
+  const modalFlujo = document.querySelector('#flujoModal .modal');
+  if (modalFlujo) {
+    modalFlujo.style.maxWidth = '950px'; 
+    modalFlujo.style.width = '95%';
+  }
   
   document.getElementById('flujoTableBody').innerHTML = flujo.map(f => {
     if (f.tipo === 'venta' && f.estado === 'cancelada') return ''; 
@@ -642,17 +649,23 @@ async function verFlujoDia() {
                 
     let signo = (f.tipo==='egreso'||f.tipo==='cierre') ? '-' : (f.tipo==='anulacion' ? '❌ ' : '');
     
-    return `<div class="t-row" style="grid-template-columns: 70px 100px 1fr 100px 100px;">
+    // 📊 NUEVA ESTRUCTURA: Agregamos ancho a las columnas y permitimos que el detalle crezca (1fr)
+    return `
+    <div class="t-row" style="display:grid; grid-template-columns: 85px 110px 1fr 100px 100px; gap: 15px; align-items: center; border-bottom: 0.5px solid var(--border); padding: 10px 0;">
        <div class="td muted" style="font-size:11px">${new Date(f.hora).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div>
-       <div class="td" style="text-transform:uppercase;font-size:9px;color:var(--amber)">${f.tipo}</div>
-       <div class="td">${f.desc}</div>
-       <div class="td muted">${f.metodo}</div>
-       <div class="td" style="color:${color};font-weight:bold">${signo}${fmt(f.monto)}</div>
+       <div class="td" style="text-transform:uppercase; font-size:9px; font-weight:bold; color:var(--amber)">${f.tipo}</div>
+       
+       <!-- Celda de Detalle: Ahora con espacio de sobra y sin saltos de línea -->
+       <div class="td" style="text-align:left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${f.desc}</div>
+       
+       <div class="td muted" style="font-size:11px">${f.metodo}</div>
+       <div class="td" style="color:${color}; font-weight:bold; text-align:right;">${signo}${fmt(f.monto)}</div>
     </div>`;
   }).join('') || '<div style="padding:2rem;text-align:center;color:var(--muted)">Sin movimientos hoy</div>';
   
   openModal('flujoModal');
 }
+
 
 async function renderCaja() {
   document.getElementById('topbarActions').innerHTML = `
