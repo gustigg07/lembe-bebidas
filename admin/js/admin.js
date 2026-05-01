@@ -595,6 +595,17 @@ let cajaDescuentos = new Set();
 let movimientosCaja = [];
 let posCategoriaActiva = 'todos';
 
+// ✅ ESTA ES LA FUNCIÓN MAESTRA QUE SOLUCIONA LOS ERRORES DE FECHAS
+async function cargarDatosDelDia() {
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0); // Desde las 00:00 de hoy
+  const fechaStr = hoy.toISOString();
+
+  cajaProducts = await getProductos();
+  cajaVentas = await getVentas(fechaStr);
+  movimientosCaja = await getMovimientos(fechaStr);
+}
+
 async function renderCaja() {
   document.getElementById('topbarActions').innerHTML = `
     <button class="btn-out" onclick="abrirModalApertura()">Abrir Caja</button>
@@ -602,12 +613,7 @@ async function renderCaja() {
     <button class="btn-out" onclick="verFlujoDia()">Flujo del Día</button>
     <button class="btn-red" onclick="iniciarCierre()">Cerrar Caja</button>`;
   
-  cajaProducts = await getProductos();
-  
-  // Traemos TODO lo de hoy (Ventas y Movimientos) al abrir la pantalla
-  const hoy = new Date(); hoy.setHours(0,0,0,0);
-  cajaVentas = await getVentas(hoy.toISOString());
-  movimientosCaja = await getMovimientos(hoy.toISOString());
+  await cargarDatosDelDia(); // Sincroniza al entrar a la pantalla
 
   document.getElementById('pageContent').innerHTML = `
     <div class="metrics" style="margin-bottom:1rem">
@@ -672,7 +678,7 @@ async function renderCaja() {
       </div>
     </div>
     
-    <!-- Modal Ticket -->
+    <!-- Modales -->
     <div class="modal-bg" id="ticketModal" onclick="if(event.target===this)closeTicket()">
       <div class="ticket">
         <div class="ticket-logo">LEMBE</div><div class="ticket-sub">Tienda de Bebidas</div><hr class="ticket-divider">
@@ -685,7 +691,6 @@ async function renderCaja() {
       </div>
     </div>
     
-    <!-- Modal: Ingreso / Egreso -->
     <div class="modal-bg" id="movModal" onclick="if(event.target===this)closeModal('movModal')">
       <div class="modal">
         <button class="close-modal" onclick="closeModal('movModal')">✕</button>
@@ -702,7 +707,6 @@ async function renderCaja() {
       </div>
     </div>
 
-    <!-- Modal: Flujo del Día -->
     <div class="modal-bg" id="flujoModal" onclick="if(event.target===this)closeModal('flujoModal')">
       <div class="modal" style="max-width: 650px;">
         <button class="close-modal" onclick="closeModal('flujoModal')">✕</button>
@@ -720,7 +724,6 @@ async function renderCaja() {
       </div>
     </div>
 
-    <!-- Modal: Cierre de Caja -->
     <div class="modal-bg" id="cierreModal" onclick="if(event.target===this)closeModal('cierreModal')">
       <div class="modal">
         <button class="close-modal" onclick="closeModal('cierreModal')">✕</button>
@@ -748,20 +751,7 @@ async function renderCaja() {
   renderCajaHist();
 }
 
-// ---- NUEVA LÓGICA DE APERTURA MANUAL ----
-async function abrirModalApertura() {
-  const inicial = prompt("💸 APERTURA DE CAJA\n\n¿Con cuánto dinero físico (billetes/cambio) arrancás la caja hoy?");
-  if (inicial !== null && inicial !== "") {
-    await insertMovimiento({ tipo: 'apertura', monto: Number(inicial)||0, descripcion: 'Apertura de caja', metodo_pago: 'efectivo' });
-    showToast('Caja abierta exitosamente');
-    
-    // Recargamos los movimientos para que aparezcan enseguida
-    const hoy = new Date(); hoy.setHours(0,0,0,0);
-    movimientosCaja = await getMovimientos(hoy.toISOString());
-  }
-}
-
-// ---- LOGICA DE POS, TABS Y CARRITO ----
+// ---- LOGICA DE POS Y CARRITO ----
 function setPosCategoria(cat, btn) {
   posCategoriaActiva = cat;
   document.querySelectorAll('#posCatFilters .filter-btn').forEach(b => b.classList.remove('active'));
@@ -858,14 +848,11 @@ async function cobrar() {
       if (prodOriginal) await upsertProducto({...prodOriginal, stock: Math.max(0,Number(prodOriginal.stock)-Number(item.qty))});
     }
     
-    // Sincronizamos con Supabase para tener IDs y fechas reales
-    const hoy = new Date(); hoy.setHours(0,0,0,0);
-    cajaVentas = await getVentas(hoy.toISOString());
-    movimientosCaja = await getMovimientos(hoy.toISOString());
+    // ✅ LLAMAMOS A LA FUNCIÓN MAESTRA
+    await cargarDatosDelDia();
     
     showTicket({items:cajaPOS, subtotal, descPct, descMonto, total, metodo:cajaPayMethod});
     resetDescuentos();
-    cajaProducts = await getProductos();
     renderCajaMetrics();
     renderCajaHist();
     renderPosTiles();
@@ -896,12 +883,11 @@ async function anularVenta(id) {
     metodo_pago: venta.metodo_pago 
   });
 
-  venta.estado = 'cancelada';
   showToast('Venta anulada correctamente');
   
-  cajaProducts = await getProductos();
-  const hoy = new Date(); hoy.setHours(0,0,0,0);
-  movimientosCaja = await getMovimientos(hoy.toISOString());
+  // ✅ LLAMAMOS A LA FUNCIÓN MAESTRA
+  await cargarDatosDelDia();
+  
   renderCajaMetrics();
   renderCajaHist();
   renderPosTiles();
@@ -958,7 +944,16 @@ function renderCajaHist() {
   }).join('') || '<div style="padding:1rem;text-align:center;color:var(--muted);font-size:12px">Sin ventas aún</div>';
 }
 
-// ---- FLUJO Y CIERRE CON FECHAS BLINDADAS ----
+// ---- FLUJO, APERTURA Y CIERRE ----
+async function abrirModalApertura() {
+  const inicial = prompt("💸 APERTURA DE CAJA\n\n¿Con cuánto dinero físico (billetes/cambio) arrancás la caja hoy?");
+  if (inicial !== null && inicial !== "") {
+    await insertMovimiento({ tipo: 'apertura', monto: Number(inicial)||0, descripcion: 'Apertura de caja', metodo_pago: 'efectivo' });
+    showToast('Caja abierta exitosamente');
+    await cargarDatosDelDia(); // Sincroniza al instante
+  }
+}
+
 function abrirModalMovimiento() { openModal('movModal'); document.getElementById('movMonto').value=''; document.getElementById('movDesc').value=''; }
 
 async function guardarMovimiento() {
@@ -972,12 +967,9 @@ async function guardarMovimiento() {
   closeModal('movModal');
   showToast('Movimiento registrado con éxito');
   
-  // Recargamos el flujo al instante
-  const hoy = new Date(); hoy.setHours(0,0,0,0);
-  movimientosCaja = await getMovimientos(hoy.toISOString());
+  await cargarDatosDelDia(); // Sincroniza al instante
 }
 
-// ✅ ACÁ SE ARREGLÓ EL PROBLEMA DEL ORDEN DE LAS FECHAS
 function armarFlujoOrdenado() {
   let flujo = [];
   cajaVentas.forEach(v => {
@@ -994,7 +986,7 @@ function armarFlujoOrdenado() {
 function verFlujoDia() {
   const flujo = armarFlujoOrdenado();
   document.getElementById('flujoTableBody').innerHTML = flujo.map(f => {
-    if (f.tipo === 'venta' && f.estado === 'cancelada') return ''; 
+    if (f.tipo === 'venta' && f.estado === 'cancelada') return ''; // Ocultamos la venta si se canceló
     
     let color = (f.tipo==='venta'||f.tipo==='ingreso'||f.tipo==='apertura') ? '#4CAF50' : 
                 (f.tipo==='egreso'?'var(--red)':
@@ -1063,9 +1055,7 @@ async function confirmarCierre() {
   closeModal('cierreModal');
   showToast('Caja cerrada. Excelente jornada!');
   
-  // Recargamos por última vez
-  const hoy = new Date(); hoy.setHours(0,0,0,0);
-  movimientosCaja = await getMovimientos(hoy.toISOString());
+  await cargarDatosDelDia();
 }
 
 // ============================
