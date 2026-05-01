@@ -85,7 +85,19 @@ async function getVentas(fechaDesde = null) {
   const { data, error } = await query;
   return error ? [] : data;
 }
+async function getMovimientos(fechaDesde = null) {
+  if (!supabase) return [];
+  let query = supabase.from('movimientos_caja').select('*').order('created_at', { ascending: true });
+  if (fechaDesde) query = query.gte('created_at', fechaDesde);
+  const { data, error } = await query;
+  return error ? [] : data;
+}
 
+async function insertMovimiento(mov) {
+  if (!supabase) return { ok: false };
+  const { data, error } = await supabase.from('movimientos_caja').insert(mov).select();
+  return error ? { ok: false, msg: error.message } : { ok: true, data };
+}
 // =============================================
 //  DATOS LOCALES (fallback sin Supabase)
 // =============================================
