@@ -849,24 +849,33 @@ async function cobrar() {
   };
 
   const res = await insertVenta(venta);
+  
   if (res.ok) {
+    // 1. Descontamos el stock
     for (const item of cajaPOS) {
       const prodOriginal = cajaProducts.find(p=>p.id===item.id);
       if (prodOriginal) await upsertProducto({...prodOriginal, stock: Math.max(0,Number(prodOriginal.stock)-Number(item.qty))});
     }
     
-    // Guardamos la venta con su ID real de la base de datos
-    const ventaConId = res.data ? res.data[0] : venta;
-    cajaVentas.unshift({...ventaConId, created_at: new Date().toISOString()});
+    // 2. SOLUCIÓN: Volvemos a pedirle a Supabase las ventas de hoy para tener el ID exacto y la fecha real
+    const hoy = new Date(); hoy.setHours(0,0,0,0);
+    cajaVentas = await getVentas(hoy.toISOString());
+    movimientosCaja = await getMovimientos(hoy.toISOString());
     
+    // 3. Mostramos el ticket y recargamos la pantalla
     showTicket({items:cajaPOS, subtotal, descPct, descMonto, total, metodo:cajaPayMethod});
     resetDescuentos();
     cajaProducts = await getProductos();
     renderCajaMetrics();
     renderCajaHist();
     renderPosTiles();
-  } else { alert("Error: " + res.msg); }
+    
+    showToast("Venta registrada correctamente");
+  } else { 
+    alert("Error: " + res.msg); 
+  }
 }
+
 
 async function anularVenta(id) {
   if (!confirm('¿Estás seguro de anular esta venta? El dinero se restará de la caja y los productos volverán al stock automáticamente.')) return;
