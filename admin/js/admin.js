@@ -597,35 +597,20 @@ let posCategoriaActiva = 'todos';
 
 // ✅ 1. FUNCIÓN MAESTRA (Filtro seguro con matemática de fechas)
 async function cargarDatosDelDia() {
-  // Descargamos todo desde hace 2 días para que la zona horaria del servidor no nos esconda nada
-  const limite = new Date();
-  limite.setDate(limite.getDate() - 2);
-  const fechaStr = limite.toISOString();
-
-  cajaProducts = await getProductos();
-  const ventasCrudas = await getVentas(fechaStr); 
-  const movsCrudos = await getMovimientos(fechaStr);
-
-  // Fecha exacta de hoy en TU computadora
+  // Sacamos la fecha de hoy a las 00:00 para el filtro
   const hoy = new Date();
-  const y = hoy.getFullYear();
-  const m = hoy.getMonth();
-  const d = hoy.getDate();
+  hoy.setHours(0, 0, 0, 0);
+  const fechaFiltro = hoy.toISOString();
 
-  // Filtramos comparando Año, Mes y Día exactos
-  cajaVentas = (ventasCrudas || []).filter(v => {
-    if (!v.created_at) return true;
-    const fechaObj = new Date(v.created_at);
-    return fechaObj.getFullYear() === y && fechaObj.getMonth() === m && fechaObj.getDate() === d;
-  });
+  // Ahora estas funciones sí existen en supabase.js
+  cajaProducts = await getProductos();
+  cajaVentas = await getVentas(fechaFiltro);
+  movimientosCaja = await getMovimientos(fechaFiltro); 
 
-  movimientosCaja = (movsCrudos || []).filter(mov => {
-    if (!mov.created_at) return true;
-    const fechaObj = new Date(mov.created_at);
-    return fechaObj.getFullYear() === y && fechaObj.getMonth() === m && fechaObj.getDate() === d;
-  });
+  // Logs para que veas en la consola si están llegando los datos
+  console.log("Ventas cargadas:", cajaVentas.length);
+  console.log("Movimientos cargados:", movimientosCaja.length);
 }
-
 // ✅ 2. OBLIGAMOS AL MODAL A ACTUALIZARSE ANTES DE ABRIRSE
 async function verFlujoDia() {
   // 🔥 MAGIA ACÁ: Le decimos que descargue todo de nuevo JUSTO antes de abrir la ventana
