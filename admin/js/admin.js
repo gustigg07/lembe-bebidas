@@ -593,6 +593,7 @@ let cajaPayMethod = 'efectivo';
 let cajaVentas = [];
 let cajaDescuentos = new Set();
 let movimientosCaja = [];
+let posCategoriaActiva = 'todos';
 
 async function renderCaja() {
   document.getElementById('topbarActions').innerHTML = `
@@ -602,17 +603,17 @@ async function renderCaja() {
   
   cajaProducts = await getProductos();
   
-  // ✅ Traemos TODO lo de hoy (Ventas y Movimientos) al abrir la pantalla
+  // Traemos TODO lo de hoy (Ventas y Movimientos) al abrir la pantalla
   const hoy = new Date(); hoy.setHours(0,0,0,0);
   cajaVentas = await getVentas(hoy.toISOString());
   movimientosCaja = await getMovimientos(hoy.toISOString());
 
   document.getElementById('pageContent').innerHTML = `
     <div class="metrics" style="margin-bottom:1rem">
-      <div class="metric"><div class="metric-label">Ingresos de hoy</div><div class="metric-val" style="color:var(--gold)" id="cj-total">$0</div></div>
-      <div class="metric"><div class="metric-label">Ventas</div><div class="metric-val" id="cj-count">0</div></div>
-      <div class="metric"><div class="metric-label">Ventas Efectivo</div><div class="metric-val" style="color:#4CAF50" id="cj-ef">$0</div></div>
-      <div class="metric"><div class="metric-label">Ventas Digital</div><div class="metric-val" style="color:var(--gold2)" id="cj-dig">$0</div></div>
+      <div class="metric"><div class="metric-label">Ingresos válidos</div><div class="metric-val" style="color:var(--gold)" id="cj-total">$0</div></div>
+      <div class="metric"><div class="metric-label">Ventas válidas</div><div class="metric-val" id="cj-count">0</div></div>
+      <div class="metric"><div class="metric-label">Efectivo</div><div class="metric-val" style="color:#4CAF50" id="cj-ef">$0</div></div>
+      <div class="metric"><div class="metric-label">Digital</div><div class="metric-val" style="color:var(--gold2)" id="cj-dig">$0</div></div>
     </div>
     
     <div class="pos-layout" style="margin:0 -2rem;border-top:0.5px solid var(--border)">
@@ -655,6 +656,7 @@ async function renderCaja() {
               <button class="pm-btn desc-btn" id="desc-10" onclick="toggleDesc(10)">10%</button>
               <button class="pm-btn desc-btn" id="desc-15" onclick="toggleDesc(15)">15%</button>
               <button class="pm-btn desc-btn" id="desc-20" onclick="toggleDesc(20)">20%</button>
+              <button class="pm-btn desc-btn" id="desc-25" onclick="toggleDesc(25)">25%</button>
               <button class="pm-btn desc-btn" id="desc-50" onclick="toggleDesc(50)">50%</button>
             </div>
           </div>
@@ -669,7 +671,7 @@ async function renderCaja() {
       </div>
     </div>
     
-    <!-- Modales Mantenidos (Ticket) -->
+    <!-- Modal Ticket -->
     <div class="modal-bg" id="ticketModal" onclick="if(event.target===this)closeTicket()">
       <div class="ticket">
         <div class="ticket-logo">LEMBE</div><div class="ticket-sub">Tienda de Bebidas</div><hr class="ticket-divider">
@@ -682,7 +684,7 @@ async function renderCaja() {
       </div>
     </div>
     
-    <!-- ✅ NUEVO MODAL: Ingreso / Egreso -->
+    <!-- Modal: Ingreso / Egreso -->
     <div class="modal-bg" id="movModal" onclick="if(event.target===this)closeModal('movModal')">
       <div class="modal">
         <button class="close-modal" onclick="closeModal('movModal')">✕</button>
@@ -699,7 +701,7 @@ async function renderCaja() {
       </div>
     </div>
 
-    <!-- ✅ NUEVO MODAL: Flujo del Día -->
+    <!-- Modal: Flujo del Día -->
     <div class="modal-bg" id="flujoModal" onclick="if(event.target===this)closeModal('flujoModal')">
       <div class="modal" style="max-width: 650px;">
         <button class="close-modal" onclick="closeModal('flujoModal')">✕</button>
@@ -717,7 +719,7 @@ async function renderCaja() {
       </div>
     </div>
 
-    <!-- ✅ NUEVO MODAL: Cierre de Caja -->
+    <!-- Modal: Cierre de Caja -->
     <div class="modal-bg" id="cierreModal" onclick="if(event.target===this)closeModal('cierreModal')">
       <div class="modal">
         <button class="close-modal" onclick="closeModal('cierreModal')">✕</button>
@@ -744,26 +746,26 @@ async function renderCaja() {
   renderCajaMetrics();
   renderCajaHist();
 
-  // ✅ LÓGICA DE APERTURA DE CAJA: Si hoy no hubo apertura, la pide
+  // Lógica Apertura de caja automática
   if (!movimientosCaja.find(m => m.tipo === 'apertura')) {
     setTimeout(() => {
       const inicial = prompt("💸 APERTURA DE CAJA\n\n¿Con cuánto dinero físico (billetes/cambio) arrancás la caja hoy?");
       if (inicial !== null) {
         insertMovimiento({ tipo: 'apertura', monto: Number(inicial)||0, descripcion: 'Apertura de caja', metodo_pago: 'efectivo' })
-          .then(() => renderCaja()); // Recarga para impactar
+          .then(() => renderCaja());
       }
     }, 400);
   }
 }
 
-// ---- LOGICA DE POS, TABS Y CARRITO MANTENIDA IGUAL ----
-let posCategoriaActiva = 'todos';
+// ---- LOGICA DE POS, TABS Y CARRITO ----
 function setPosCategoria(cat, btn) {
   posCategoriaActiva = cat;
   document.querySelectorAll('#posCatFilters .filter-btn').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
   renderPosTiles();
 }
+
 function renderPosTiles() {
   const q = (document.getElementById('posSearch')?.value || '').toLowerCase();
   const list = cajaProducts.filter(p => {
@@ -779,6 +781,7 @@ function renderPosTiles() {
       <div class="pt-stock">${p.stock > 0 ? p.stock + ' u.' : 'Agotado'}</div>
     </div>`).join('') : '<div style="padding:1rem;color:var(--muted);font-size:12px;grid-column:1/-1;text-align:center">Sin resultados</div>';
 }
+
 function posAdd(id) {
   const prod = cajaProducts.find(p => p.id === id);
   if (!prod || prod.stock === 0) return;
@@ -786,6 +789,7 @@ function posAdd(id) {
   if (ex) { if (ex.qty < prod.stock) ex.qty++; } else cajaPOS.push({ ...prod, qty: 1 });
   renderPosCart();
 }
+
 function posChg(id, d) {
   const item = cajaPOS.find(c => c.id === id);
   if (!item) return;
@@ -793,6 +797,7 @@ function posChg(id, d) {
   if (item.qty <= 0) cajaPOS = cajaPOS.filter(c => c.id !== id);
   renderPosCart();
 }
+
 function renderPosCart() {
   const count = cajaPOS.reduce((a, c) => a + c.qty, 0);
   const subtotal = cajaPOS.reduce((a, c) => a + c.precio * c.qty, 0);
@@ -811,45 +816,25 @@ function renderPosCart() {
   document.getElementById('posTotal').textContent = fmt(total);
   document.getElementById('posCobraBtn').disabled = cajaPOS.length === 0;
 }
+
 function toggleDesc(pct) {
   if (cajaDescuentos.has(pct)) { cajaDescuentos.delete(pct); document.getElementById('desc-'+pct)?.classList.remove('sel'); }
   else { cajaDescuentos.add(pct); document.getElementById('desc-'+pct)?.classList.add('sel'); }
   renderPosCart();
 }
+
 function resetDescuentos() {
   cajaDescuentos.clear();
-  [5,10,15,20,50].forEach(v => document.getElementById('desc-'+v)?.classList.remove('sel'));
+  [5,10,15,20,25,50].forEach(v => document.getElementById('desc-'+v)?.classList.remove('sel'));
   if (document.getElementById('descTotalLabel')) document.getElementById('descTotalLabel').textContent = '';
 }
+
 function selectPM(pm) {
   cajaPayMethod = pm;
   ['efectivo','transferencia','qr'].forEach(m => document.getElementById('pm-'+m)?.classList.toggle('sel', m===pm));
 }
 
-// ---- METRICAS Y VENTA ----
-function renderCajaMetrics() {
-  let ef=0, tr=0, qr=0, t=0;
-  cajaVentas.forEach(v => {
-    t += v.total;
-    if (v.metodo_pago === 'efectivo') ef += v.total;
-    if (v.metodo_pago === 'transferencia') tr += v.total;
-    if (v.metodo_pago === 'qr') qr += v.total;
-  });
-  document.getElementById('cj-total').textContent = fmt(t);
-  document.getElementById('cj-count').textContent = cajaVentas.length;
-  document.getElementById('cj-ef').textContent = fmt(ef);
-  document.getElementById('cj-dig').textContent = fmt(tr + qr);
-}
-function renderCajaHist() {
-  document.getElementById('cajaHist').innerHTML = cajaVentas.slice(0,6).map(v => {
-    let hora = new Date(v.created_at || Date.now()).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
-    return `<div style="background:var(--dark);border:0.5px solid var(--border);padding:.7rem 1rem;display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-      <div style="font-size:11px;color:var(--muted)">${hora} · ${v.items?v.items.length:0} prod.</div>
-      <div style="font-family:'Playfair Display',serif;font-size:1rem;color:var(--gold)">${fmt(v.total)}</div>
-    </div>`;
-  }).join('') || '<div style="padding:1rem;text-align:center;color:var(--muted);font-size:12px">Sin ventas aún</div>';
-}
-
+// ---- COBRO Y ANULACIÓN DE VENTAS ----
 async function cobrar() {
   if (!cajaPOS.length) return;
   const subtotal = cajaPOS.reduce((a,c)=>a+(Number(c.precio)*Number(c.qty)),0);
@@ -869,8 +854,11 @@ async function cobrar() {
       const prodOriginal = cajaProducts.find(p=>p.id===item.id);
       if (prodOriginal) await upsertProducto({...prodOriginal, stock: Math.max(0,Number(prodOriginal.stock)-Number(item.qty))});
     }
-    // Agregamos a la lista local para verla enseguida sin recargar base de datos
-    cajaVentas.unshift({...venta, created_at: new Date().toISOString()});
+    
+    // Guardamos la venta con su ID real de la base de datos
+    const ventaConId = res.data ? res.data[0] : venta;
+    cajaVentas.unshift({...ventaConId, created_at: new Date().toISOString()});
+    
     showTicket({items:cajaPOS, subtotal, descPct, descMonto, total, metodo:cajaPayMethod});
     resetDescuentos();
     cajaProducts = await getProductos();
@@ -878,6 +866,42 @@ async function cobrar() {
     renderCajaHist();
     renderPosTiles();
   } else { alert("Error: " + res.msg); }
+}
+
+async function anularVenta(id) {
+  if (!confirm('¿Estás seguro de anular esta venta? El dinero se restará de la caja y los productos volverán al stock automáticamente.')) return;
+  
+  const venta = cajaVentas.find(v => v.id === id);
+  if (!venta) return;
+
+  // Marcar cancelada en Supabase
+  const { error } = await supabase.from('ventas').update({ estado: 'cancelada' }).eq('id', id);
+  if (error) { showToast('Error al anular: ' + error.message); return; }
+
+  // Devolver productos al stock
+  for (const item of venta.items) {
+    const prod = cajaProducts.find(p => p.id === item.id);
+    if (prod) {
+      await upsertProducto({ ...prod, stock: Number(prod.stock) + Number(item.qty) });
+    }
+  }
+
+  // Registrar anulación en Flujo
+  await insertMovimiento({ 
+    tipo: 'anulacion', 
+    monto: venta.total, 
+    descripcion: `Anulación de Venta #${id}`, 
+    metodo_pago: venta.metodo_pago 
+  });
+
+  venta.estado = 'cancelada';
+  showToast('Venta anulada correctamente');
+  
+  cajaProducts = await getProductos();
+  movimientosCaja = await getMovimientos(new Date().toISOString().slice(0,10));
+  renderCajaMetrics();
+  renderCajaHist();
+  renderPosTiles();
 }
 
 function showTicket(v) {
@@ -892,10 +916,48 @@ function showTicket(v) {
 }
 function closeTicket() { cajaPOS=[]; resetDescuentos(); renderPosCart(); closeModal('ticketModal'); }
 
-// ---- ✅ NUEVAS FUNCIONES DE FLUJO, INGRESO Y CIERRE ----
+// ---- MÉTRICAS E HISTORIAL (IGNORANDO CANCELADAS) ----
+function renderCajaMetrics() {
+  let ef=0, tr=0, qr=0, t=0, count=0;
+  cajaVentas.forEach(v => {
+    if (v.estado === 'cancelada') return; // Ignoramos anuladas
+    t += v.total;
+    count++;
+    if (v.metodo_pago === 'efectivo') ef += v.total;
+    if (v.metodo_pago === 'transferencia') tr += v.total;
+    if (v.metodo_pago === 'qr') qr += v.total;
+  });
+  document.getElementById('cj-total').textContent = fmt(t);
+  document.getElementById('cj-count').textContent = count;
+  document.getElementById('cj-ef').textContent = fmt(ef);
+  document.getElementById('cj-dig').textContent = fmt(tr + qr);
+}
 
-// 1. Ingresos y Egresos Manuales
+function renderCajaHist() {
+  document.getElementById('cajaHist').innerHTML = cajaVentas.slice(0, 8).map(v => {
+    let hora = new Date(v.created_at || Date.now()).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+    let isCancel = v.estado === 'cancelada';
+    
+    return `<div style="background:var(--dark);border:0.5px solid var(--border);padding:.7rem 1rem;display:flex;align-items:center;justify-content:space-between;margin-bottom:4px; opacity: ${isCancel ? '0.5' : '1'}">
+      <div>
+         <div style="font-size:11px;color:var(--muted)">
+           ${isCancel ? '❌ ' : ''}${hora} · ${v.items?v.items.length:0} prod.
+         </div>
+         ${isCancel ? `<div style="font-size:9px;color:var(--red);text-transform:uppercase;margin-top:2px">Anulada</div>` : ''}
+      </div>
+      <div style="display:flex; align-items:center; gap: 8px;">
+         <div style="font-family:'Playfair Display',serif;font-size:1rem;color: ${isCancel ? 'var(--muted)' : 'var(--gold)'}">
+           ${isCancel ? `<del>${fmt(v.total)}</del>` : fmt(v.total)}
+         </div>
+         ${!isCancel && v.id ? `<button class="act-btn del" onclick="anularVenta(${v.id})" title="Anular venta" style="font-size:10px; padding:4px;">✕</button>` : ''}
+      </div>
+    </div>`;
+  }).join('') || '<div style="padding:1rem;text-align:center;color:var(--muted);font-size:12px">Sin ventas aún</div>';
+}
+
+// ---- FLUJO Y CIERRE ----
 function abrirModalMovimiento() { openModal('movModal'); document.getElementById('movMonto').value=''; document.getElementById('movDesc').value=''; }
+
 async function guardarMovimiento() {
   const tipo = document.getElementById('movTipo').value;
   const monto = Number(document.getElementById('movMonto').value);
@@ -906,22 +968,27 @@ async function guardarMovimiento() {
   await insertMovimiento({ tipo, monto, descripcion: desc, metodo_pago: metodo });
   closeModal('movModal');
   showToast('Movimiento registrado con éxito');
-  renderCaja(); // Recarga la info general
+  renderCaja();
 }
 
-// 2. Armar la tabla de Flujo (Mezcla Ventas + Movimientos)
 function armarFlujoOrdenado() {
   let flujo = [];
-  cajaVentas.forEach(v => flujo.push({ hora: new Date(v.created_at).getTime(), tipo: 'venta', desc: 'Venta ticket', monto: v.total, metodo: v.metodo_pago }));
+  cajaVentas.forEach(v => flujo.push({ hora: new Date(v.created_at).getTime(), tipo: 'venta', desc: 'Venta ticket', monto: v.total, metodo: v.metodo_pago, estado: v.estado }));
   movimientosCaja.forEach(m => flujo.push({ hora: new Date(m.created_at).getTime(), tipo: m.tipo, desc: m.descripcion, monto: m.monto, metodo: m.metodo_pago }));
-  return flujo.sort((a,b) => a.hora - b.hora); // Orden cronológico
+  return flujo.sort((a,b) => a.hora - b.hora);
 }
 
 function verFlujoDia() {
   const flujo = armarFlujoOrdenado();
   document.getElementById('flujoTableBody').innerHTML = flujo.map(f => {
-    let color = (f.tipo==='venta'||f.tipo==='ingreso'||f.tipo==='apertura') ? '#4CAF50' : (f.tipo==='egreso'?'var(--red)':'var(--muted)');
-    let signo = (f.tipo==='egreso') ? '-' : '';
+    if (f.tipo === 'venta' && f.estado === 'cancelada') return ''; 
+    
+    let color = (f.tipo==='venta'||f.tipo==='ingreso'||f.tipo==='apertura') ? '#4CAF50' : 
+                (f.tipo==='egreso'?'var(--red)':
+                (f.tipo==='anulacion'?'var(--orange)':'var(--muted)'));
+                
+    let signo = (f.tipo==='egreso') ? '-' : (f.tipo==='anulacion' ? '❌ ' : '');
+    
     return `<div class="t-row" style="grid-template-columns: 70px 100px 1fr 100px 100px;">
        <div class="td muted" style="font-size:11px">${new Date(f.hora).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div>
        <div class="td" style="text-transform:uppercase;font-size:9px;color:var(--amber)">${f.tipo}</div>
@@ -941,7 +1008,6 @@ function exportFlujo() {
   downloadCSV(rows, `lembe_flujo_${new Date().toISOString().slice(0,10)}.csv`);
 }
 
-// 3. Cierre de Caja
 function calcularEfectivoEsperado() {
   let esperado = 0;
   movimientosCaja.forEach(m => {
@@ -950,7 +1016,9 @@ function calcularEfectivoEsperado() {
       if (m.tipo === 'egreso') esperado -= Number(m.monto);
     }
   });
-  cajaVentas.forEach(v => { if (v.metodo_pago === 'efectivo') esperado += Number(v.total); });
+  cajaVentas.forEach(v => { 
+    if (v.metodo_pago === 'efectivo' && v.estado !== 'cancelada') esperado += Number(v.total); 
+  });
   return esperado;
 }
 
@@ -981,8 +1049,9 @@ async function confirmarCierre() {
   await insertMovimiento({ tipo: 'cierre', monto: real, descripcion: detalle, metodo_pago: 'efectivo' });
   closeModal('cierreModal');
   showToast('Caja cerrada. Excelente jornada!');
-  renderCaja(); // Recarga
+  renderCaja();
 }
+
 // ============================
 //  PEDIDOS
 // ============================
@@ -1195,17 +1264,18 @@ async function renderHistorial() {
 }
 
 function renderHistContent() {
-  const total = histData.reduce((a, h) => a + h.total, 0);
-  const avg = histData.length ? Math.round(total / histData.length) : 0;
-  const max = histData.length ? Math.max(...histData.map(h => h.total)) : 0;
-  const ef = histData.filter(h => h.metodo_pago === 'efectivo').reduce((a, h) => a + h.total, 0);
-  const tr = histData.filter(h => h.metodo_pago === 'transferencia').reduce((a, h) => a + h.total, 0);
-  const qr = histData.filter(h => h.metodo_pago === 'qr').reduce((a, h) => a + h.total, 0);
+  const validas = histData.filter(h => h.estado !== 'cancelada'); // Solo calculamos sobre las que NO están anuladas
+  const total = validas.reduce((a, h) => a + h.total, 0);
+  const avg = validas.length ? Math.round(total / validas.length) : 0;
+  const max = validas.length ? Math.max(...validas.map(h => h.total)) : 0;
+  const ef = validas.filter(h => h.metodo_pago === 'efectivo').reduce((a, h) => a + h.total, 0);
+  const tr = validas.filter(h => h.metodo_pago === 'transferencia').reduce((a, h) => a + h.total, 0);
+  const qr = validas.filter(h => h.metodo_pago === 'qr').reduce((a, h) => a + h.total, 0);
 
   document.getElementById('pageContent').innerHTML = `
     <div class="metrics" style="margin-bottom:1rem">
-      <div class="metric"><div class="metric-label">Ingresos totales</div><div class="metric-val" style="color:var(--gold)">${fmt(total)}</div></div>
-      <div class="metric"><div class="metric-label">Transacciones</div><div class="metric-val">${histData.length}</div></div>
+      <div class="metric"><div class="metric-label">Ingresos válidos</div><div class="metric-val" style="color:var(--gold)">${fmt(total)}</div></div>
+      <div class="metric"><div class="metric-label">Ventas válidas</div><div class="metric-val">${validas.length}</div></div>
       <div class="metric"><div class="metric-label">Ticket promedio</div><div class="metric-val" style="color:var(--gold2)">${fmt(avg)}</div></div>
       <div class="metric"><div class="metric-label">Mayor venta</div><div class="metric-val" style="color:#4CAF50">${fmt(max)}</div></div>
     </div>
@@ -1223,32 +1293,35 @@ function renderHistContent() {
         <div class="th">Fecha</div><div class="th">Productos</div><div class="th">Método</div><div class="th">Total</div><div class="th">Estado</div>
       </div>
       <div class="t-body">
-        ${histData.map(h => `
-          <div class="t-row" style="grid-template-columns:120px 2fr 120px 100px 90px">
+        ${histData.map(h => {
+          const isCancel = h.estado === 'cancelada';
+          return `<div class="t-row" style="grid-template-columns:120px 2fr 120px 100px 90px; opacity: ${isCancel ? '0.5' : '1'}">
             <div class="td muted" style="font-size:11px">${new Date(h.created_at).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>
             <div class="td muted" style="font-size:11px">${Array.isArray(h.items) ? h.items.map(i => i.nombre + ' x' + i.qty).join(', ').slice(0, 60) : '-'}</div>
             <div class="td"><span class="type-badge tb-venta">${h.metodo_pago}</span></div>
-            <div class="td gold">${fmt(h.total)}</div>
-            <div class="td"><span class="status-badge s-completado">${h.estado || 'completado'}</span></div>
-          </div>`).join('')}
+            <div class="td gold">${isCancel ? `<del>${fmt(h.total)}</del>` : fmt(h.total)}</div>
+            <div class="td"><span class="status-badge ${isCancel ? 's-cancelado' : 's-completado'}">${h.estado || 'completado'}</span></div>
+          </div>`
+        }).join('')}
       </div>
     </div>`;
 
-  renderHistChart();
+  renderHistChart(validas); // Le pasamos solo las válidas al gráfico
 }
 
-function renderHistChart() {
+function renderHistChart(validas) {
   const days = [];
   for (let i = 6; i >= 0; i--) {
     const d = new Date(); d.setDate(d.getDate() - i);
     const key = d.toISOString().slice(0, 10);
-    const val = histData.filter(h => h.created_at && h.created_at.slice(0, 10) === key).reduce((a, h) => a + h.total, 0);
+    // El gráfico ahora solo calcula ingresos sobre ventas válidas
+    const val = validas.filter(h => h.created_at && h.created_at.slice(0, 10) === key).reduce((a, h) => a + h.total, 0);
     days.push({ label: d.getDate() + '/' + String(d.getMonth() + 1).padStart(2, '0'), val });
   }
   const maxVal = Math.max(...days.map(d => d.val), 1);
   const chart = document.getElementById('histChart');
 
-  if (chart) { // Seguro anti-errores
+  if (chart) {
     chart.innerHTML = days.map(d => `
       <div class="bar-col">
         <div class="bar-val">${d.val ? fmt(d.val) : '—'}</div>
