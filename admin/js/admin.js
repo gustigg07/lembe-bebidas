@@ -595,38 +595,31 @@ let cajaDescuentos = new Set();
 let movimientosCaja = [];
 let posCategoriaActiva = 'todos';
 
-// ✅ FUNCIÓN MAESTRA QUE HABLA DIRECTO CON LA BASE DE DATOS BURLANDO LA CACHÉ
+// ✅ FUNCIÓN MAESTRA CON FILTRO DE FECHA LOCAL INFALIBLE
 async function cargarDatosDelDia() {
+  // Traemos los datos desde hace 3 días para asegurarnos de que Supabase no nos esconda nada
   const limite = new Date();
-  limite.setDate(limite.getDate() - 3); // Buscamos 3 días atrás por seguridad
+  limite.setDate(limite.getDate() - 3);
   const fechaStr = limite.toISOString();
 
   cajaProducts = await getProductos();
-
-  // 1. Pedimos Ventas directamente
+  
+  // Usamos supabase directamente para saltear cualquier memoria caché
   const resVentas = await supabase.from('ventas').select('*').gte('created_at', fechaStr).order('created_at', { ascending: false });
-  if (resVentas.error) { alert("🚨 ERROR VENTAS: " + resVentas.error.message); return; }
-
-  // 2. Pedimos Movimientos directamente
   const resMovs = await supabase.from('movimientos_caja').select('*').gte('created_at', fechaStr).order('created_at', { ascending: true });
-  if (resMovs.error) { alert("🚨 ERROR MOVIMIENTOS: " + resMovs.error.message); return; }
 
-  const hoy = new Date();
-  const diaHoy = hoy.getDate();
-  const mesHoy = hoy.getMonth();
-  const anioHoy = hoy.getFullYear();
+  // Sacamos la fecha EXACTA de tu computadora hoy (Ej: "1/5/2026")
+  const fechaHoy = new Date().toLocaleDateString();
 
-  // 3. Filtramos exactamente el día de hoy según la hora de tu computadora
+  // Filtramos para que solo queden los que coinciden con la fecha de hoy
   cajaVentas = (resVentas.data || []).filter(v => {
     if (!v.created_at) return true;
-    const d = new Date(v.created_at);
-    return d.getDate() === diaHoy && d.getMonth() === mesHoy && d.getFullYear() === anioHoy;
+    return new Date(v.created_at).toLocaleDateString() === fechaHoy;
   });
 
   movimientosCaja = (resMovs.data || []).filter(m => {
     if (!m.created_at) return true;
-    const d = new Date(m.created_at);
-    return d.getDate() === diaHoy && d.getMonth() === mesHoy && d.getFullYear() === anioHoy;
+    return new Date(m.created_at).toLocaleDateString() === fechaHoy;
   });
 }
 
@@ -963,11 +956,11 @@ function renderCajaHist() {
   }).join('') || '<div style="padding:1rem;text-align:center;color:var(--muted);font-size:12px">Sin ventas aún</div>';
 }
 
-// ---- FLUJO, APERTURA Y CIERRE (BURLANDO LA CACHÉ) ----
+// ---- FLUJO, APERTURA Y CIERRE ----
 async function abrirModalApertura() {
   const inicial = prompt("💸 APERTURA DE CAJA\n\n¿Con cuánto dinero físico (billetes/cambio) arrancás la caja hoy?");
   if (inicial !== null && inicial !== "") {
-    // ⚠️ Habla directo con Supabase sin usar supabase.js local
+    // Habla directo con Supabase sin usar supabase.js local
     const res = await supabase.from('movimientos_caja').insert({ 
       tipo: 'apertura', monto: Number(inicial)||0, descripcion: 'Apertura de caja', metodo_pago: 'efectivo' 
     }).select();
@@ -992,7 +985,7 @@ async function guardarMovimiento() {
   const desc = document.getElementById('movDesc').value.trim();
   if(!monto || !desc) { alert("Completá el monto y el motivo"); return; }
   
-  // ⚠️ Habla directo con Supabase
+  // Habla directo con Supabase
   const res = await supabase.from('movimientos_caja').insert({ 
     tipo, monto, descripcion: desc, metodo_pago: metodo 
   }).select();
@@ -1010,27 +1003,35 @@ async function guardarMovimiento() {
 
 function armarFlujoOrdenado() {
   let flujo = [];
+  
+  // Metemos las ventas
   cajaVentas.forEach(v => {
     let t = v.created_at ? new Date(v.created_at).getTime() : Date.now();
     flujo.push({ hora: t, tipo: 'venta', desc: 'Venta ticket', monto: v.total, metodo: v.metodo_pago, estado: v.estado });
   });
+  
+  // Metemos los movimientos (aperturas, egresos, etc)
   movimientosCaja.forEach(m => {
     let t = m.created_at ? new Date(m.created_at).getTime() : Date.now();
     flujo.push({ hora: t, tipo: m.tipo, desc: m.descripcion, monto: m.monto, metodo: m.metodo_pago, estado: 'completado' });
   });
+  
+  // Ordenamos cronológicamente
   return flujo.sort((a,b) => a.hora - b.hora);
 }
 
 function verFlujoDia() {
   const flujo = armarFlujoOrdenado();
+  
   document.getElementById('flujoTableBody').innerHTML = flujo.map(f => {
-    if (f.tipo === 'venta' && f.estado === 'cancelada') return ''; 
+    if (f.tipo === 'venta' && f.estado === 'cancelada') return ''; // Ocultamos la venta si se canceló
     
+    // Colores según el tipo (verde para ingresos, rojo para egresos)
     let color = (f.tipo==='venta'||f.tipo==='ingreso'||f.tipo==='apertura') ? '#4CAF50' : 
-                (f.tipo==='egreso'?'var(--red)':
+                (f.tipo==='egreso'||f.tipo==='cierre'?'var(--red)':
                 (f.tipo==='anulacion'?'var(--orange)':'var(--muted)'));
                 
-    let signo = (f.tipo==='egreso') ? '-' : (f.tipo==='anulacion' ? '❌ ' : '');
+    let signo = (f.tipo==='egreso'||f.tipo==='cierre') ? '-' : (f.tipo==='anulacion' ? '❌ ' : '');
     
     return `<div class="t-row" style="grid-template-columns: 70px 100px 1fr 100px 100px;">
        <div class="td muted" style="font-size:11px">${new Date(f.hora).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div>
@@ -1040,6 +1041,7 @@ function verFlujoDia() {
        <div class="td" style="color:${color};font-weight:bold">${signo}${fmt(f.monto)}</div>
     </div>`;
   }).join('') || '<div style="padding:2rem;text-align:center;color:var(--muted)">Sin movimientos hoy</div>';
+  
   openModal('flujoModal');
 }
 
@@ -1089,7 +1091,7 @@ async function confirmarCierre() {
   const dif = real - esperado;
   const detalle = `Cierre. Esperado: ${fmt(esperado)} | Dif: ${dif > 0 ? '+' : ''}${fmt(dif)}`;
   
-  // ⚠️ Habla directo con Supabase
+  // Habla directo con Supabase
   const res = await supabase.from('movimientos_caja').insert({ 
     tipo: 'cierre', monto: real, descripcion: detalle, metodo_pago: 'efectivo' 
   }).select();
