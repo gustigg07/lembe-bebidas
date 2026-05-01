@@ -583,6 +583,7 @@ function filtrarCatalogo(cat, btn) {
   if (grid && window._catalogoProds) grid.innerHTML = renderCatalogoGrid(window._catalogoProds, cat);
 }
 
+
 // ============================
 //  CAJA / VENTAS
 // ============================
@@ -591,6 +592,7 @@ let cajaProducts = [];
 let cajaPayMethod = 'efectivo';
 let cajaVentas = [];
 let cajaTotales = { efectivo: 0, transferencia: 0, qr: 0 };
+let cajaDescuentos = new Set(); // ✅ Agregamos el Set para guardar los descuentos seleccionados
 
 async function renderCaja() {
   document.getElementById('topbarActions').innerHTML = `
@@ -636,6 +638,20 @@ async function renderCaja() {
             <div class="pos-total-row"><span>Subtotal</span><span id="posSub">$0</span></div>
             <div class="pos-total-row main"><span>Total</span><span id="posTotal">$0</span></div>
           </div>
+          
+          <!-- ✅ BOTONERA DE DESCUENTOS RECUPERADA -->
+          <div style="margin-bottom:.8rem">
+            <div style="font-size:9px;letter-spacing:.3em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem">Descuento <span id="descTotalLabel" style="color:var(--orange)"></span></div>
+            <div class="pm-btns">
+              <button class="pm-btn desc-btn" id="desc-5"  onclick="toggleDesc(5)">5%</button>
+              <button class="pm-btn desc-btn" id="desc-10" onclick="toggleDesc(10)">10%</button>
+              <button class="pm-btn desc-btn" id="desc-15" onclick="toggleDesc(15)">15%</button>
+              <button class="pm-btn desc-btn" id="desc-20" onclick="toggleDesc(20)">20%</button>
+              <button class="pm-btn desc-btn" id="desc-25" onclick="toggleDesc(25)">25%</button>
+              <button class="pm-btn desc-btn" id="desc-50" onclick="toggleDesc(50)">50%</button>
+            </div>
+          </div>
+
           <div class="pm-btns">
             <button class="pm-btn sel" id="pm-efectivo" onclick="selectPM('efectivo')">Efectivo</button>
             <button class="pm-btn" id="pm-transferencia" onclick="selectPM('transferencia')">Transfer.</button>
@@ -645,6 +661,7 @@ async function renderCaja() {
         </div>
       </div>
     </div>
+    
     <div class="modal-bg" id="ticketModal" onclick="if(event.target===this)closeTicket()">
       <div class="ticket">
         <div class="ticket-logo">LEMBE</div>
@@ -652,7 +669,12 @@ async function renderCaja() {
         <hr class="ticket-divider">
         <div id="ticketItems"></div>
         <hr class="ticket-divider">
-        <div class="ticket-total-row"><span>Total</span><span id="ticketTotal"></span></div>
+        
+        <!-- ✅ FILAS DE DESCUENTO EN EL TICKET RECUPERADAS -->
+        <div class="ticket-total-row" style="color:var(--cream)"><span>Subtotal</span><span id="ticketSub"></span></div>
+        <div id="ticketDescRow" class="ticket-total-row" style="color:#e07a30;display:none"><span id="ticketDescLabel">Descuento</span><span id="ticketDescAmt"></span></div>
+        <div class="ticket-total-row" style="font-size:1.1rem;font-weight:700"><span>Total</span><span id="ticketTotal"></span></div>
+        
         <div id="ticketMethod" style="font-size:10px;color:var(--muted);text-align:center;margin-top:.4rem"></div>
         <hr class="ticket-divider">
         <div class="ticket-thanks">¡Gracias por tu compra!</div>
@@ -706,9 +728,16 @@ function posChg(id, d) {
   if (item.qty <= 0) cajaPOS = cajaPOS.filter(c => c.id !== id);
   renderPosCart();
 }
+
 function renderPosCart() {
-  const count = cajaPOS.reduce((a, c) => a + c.qty, 0);
-  const total = cajaPOS.reduce((a, c) => a + c.precio * c.qty, 0);
+  const count    = cajaPOS.reduce((a, c) => a + c.qty, 0);
+  const subtotal = cajaPOS.reduce((a, c) => a + c.precio * c.qty, 0);
+
+  // ✅ CÁLCULO DE DESCUENTOS RECUPERADO
+  const descPct   = [...cajaDescuentos].reduce((a, v) => a + v, 0);
+  const descMonto = Math.round(subtotal * descPct / 100);
+  const total     = subtotal - descMonto;
+
   document.getElementById('posItemCount').textContent = count + ' item' + (count !== 1 ? 's' : '');
   document.getElementById('posCart').innerHTML = cajaPOS.length ? cajaPOS.map(item => `
     <div class="cart-item-row">
@@ -721,10 +750,40 @@ function renderPosCart() {
       </div>
       <div class="ci-sub">${fmt(item.precio * item.qty)}</div>
     </div>`).join('') : '<div class="cart-empty-msg">Agregá productos</div>';
-  document.getElementById('posSub').textContent = fmt(total);
+
+  document.getElementById('posSub').textContent = fmt(subtotal);
+
+  // Fila de descuento: aparece solo si hay algo seleccionado
+  const descLabel = document.getElementById('descTotalLabel');
+  if (descPct > 0 && cajaPOS.length) {
+    descLabel.textContent = `— ${descPct}% = -${fmt(descMonto)}`;
+  } else {
+    descLabel.textContent = '';
+  }
+
   document.getElementById('posTotal').textContent = fmt(total);
   document.getElementById('posCobraBtn').disabled = cajaPOS.length === 0;
 }
+
+// ✅ FUNCIONES DE DESCUENTO RECUPERADAS
+function toggleDesc(pct) {
+  if (cajaDescuentos.has(pct)) {
+    cajaDescuentos.delete(pct);
+    document.getElementById('desc-' + pct)?.classList.remove('sel');
+  } else {
+    cajaDescuentos.add(pct);
+    document.getElementById('desc-' + pct)?.classList.add('sel');
+  }
+  renderPosCart();
+}
+
+function resetDescuentos() {
+  cajaDescuentos.clear();
+  [5, 10, 15, 20, 25, 50].forEach(v => document.getElementById('desc-' + v)?.classList.remove('sel'));
+  const lbl = document.getElementById('descTotalLabel');
+  if (lbl) lbl.textContent = '';
+}
+
 function selectPM(pm) {
   cajaPayMethod = pm;
   ['efectivo', 'transferencia', 'qr'].forEach(m => document.getElementById('pm-' + m)?.classList.toggle('sel', m === pm));
@@ -732,44 +791,39 @@ function selectPM(pm) {
 
 async function cobrar() {
   if (!cajaPOS.length) return;
-  // Aseguramos que la suma sea matemática y no de texto
-  const total = cajaPOS.reduce((a, c) => a + (Number(c.precio) * Number(c.qty)), 0);
 
-  // 1. Preparamos el objeto de la venta
+  const subtotal  = cajaPOS.reduce((a, c) => a + (Number(c.precio) * Number(c.qty)), 0);
+  const descPct   = [...cajaDescuentos].reduce((a, v) => a + v, 0);
+  const descMonto = Math.round(subtotal * descPct / 100);
+  const total     = subtotal - descMonto;
+
   const venta = {
     items: cajaPOS.map(c => ({ id: c.id, nombre: c.nombre, qty: Number(c.qty), precio: Number(c.precio) })),
+    subtotal: Math.round(subtotal), // ✅ Ahora se guarda el subtotal
+    descuento_pct: descPct,         // ✅ Se guarda el % de descuento
+    descuento_monto: descMonto,     // ✅ Se guarda la plata descontada
     total: Math.round(total),
     metodo_pago: cajaPayMethod,
     estado: 'completado'
   };
 
-
-  // 2. REGISTRAMOS LA VENTA Y DESCONTAMOS STOCK
   const res = await insertVenta(venta);
 
   if (res.ok) {
-    // Recorremos el carrito para actualizar cada producto en Supabase
     for (const item of cajaPOS) {
       const prodOriginal = cajaProducts.find(p => p.id === item.id);
-
       if (prodOriginal) {
-        const nuevoStock = Math.max(0, Number(prodOriginal.stock) - Number(item.qty));
-
-        // EL TRUCO ESTÁ ACÁ: Copiamos todo el producto original y solo le pisamos el stock
-        const productoActualizado = { ...prodOriginal, stock: nuevoStock };
-
-        // Ahora sí, Supabase recibe todos los datos y no tira error 400
+        const productoActualizado = { ...prodOriginal, stock: Math.max(0, Number(prodOriginal.stock) - Number(item.qty)) };
         await upsertProducto(productoActualizado);
       }
     }
 
-    // 3. Actualización visual y ticket
     cajaTotales[cajaPayMethod] += total;
     cajaVentas.unshift({ ...venta, hora: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) });
 
-    showTicket({ items: cajaPOS, total, metodo: cajaPayMethod });
+    showTicket({ items: cajaPOS, subtotal, descPct, descMonto, total, metodo: cajaPayMethod });
 
-    // 4. RECARGA CRÍTICA
+    resetDescuentos();
     cajaProducts = await getProductos();
     renderCajaMetrics();
     renderCajaHist();
@@ -779,13 +833,28 @@ async function cobrar() {
     alert("Error al registrar la venta: " + res.msg);
   }
 }
+
 function showTicket(v) {
   document.getElementById('ticketItems').innerHTML = v.items.map(i => `<div class="ticket-item-row"><span>${i.emoji || '🍷'} ${i.nombre} x${i.qty}</span><span>${fmt(i.precio * i.qty)}</span></div>`).join('');
+
+  document.getElementById('ticketSub').textContent = fmt(v.subtotal);
+
+  const descRow = document.getElementById('ticketDescRow');
+  if (v.descPct > 0) {
+    descRow.style.display = 'flex';
+    document.getElementById('ticketDescLabel').textContent = `Descuento ${v.descPct}%`;
+    document.getElementById('ticketDescAmt').textContent = '-' + fmt(v.descMonto);
+  } else {
+    descRow.style.display = 'none';
+  }
+
   document.getElementById('ticketTotal').textContent = fmt(v.total);
   document.getElementById('ticketMethod').textContent = { efectivo: 'Efectivo', transferencia: 'Transferencia', qr: 'QR / Débito' }[v.metodo] || v.metodo;
   openModal('ticketModal');
 }
-function closeTicket() { cajaPOS = []; renderPosCart(); closeModal('ticketModal'); }
+
+function closeTicket() { cajaPOS = []; resetDescuentos(); renderPosCart(); closeModal('ticketModal'); }
+
 function renderCajaMetrics() {
   const t = Object.values(cajaTotales).reduce((a, b) => a + b, 0);
   document.getElementById('cj-total').textContent = fmt(t);
@@ -793,6 +862,7 @@ function renderCajaMetrics() {
   document.getElementById('cj-ef').textContent = fmt(cajaTotales.efectivo);
   document.getElementById('cj-dig').textContent = fmt(cajaTotales.transferencia + cajaTotales.qr);
 }
+
 function renderCajaHist() {
   document.getElementById('cajaHist').innerHTML = cajaVentas.slice(0, 8).map(v => `
     <div style="background:var(--dark);border:0.5px solid var(--border);padding:.7rem 1rem;display:flex;align-items:center;justify-content:space-between;gap:.8rem">
@@ -800,18 +870,19 @@ function renderCajaHist() {
       <div style="font-family:'Playfair Display',serif;font-size:1rem;color:var(--gold)">${fmt(v.total)}</div>
     </div>`).join('') || '<div style="padding:1rem;text-align:center;color:var(--muted);font-size:12px">Sin ventas aún</div>';
 }
+
 function exportCajaVentas() {
   if (!cajaVentas.length) { showToast('No hay ventas para exportar'); return; }
   const rows = [['Hora', 'Productos', 'Total', 'Método']];
   cajaVentas.forEach(v => rows.push([v.hora, v.items.map(i => i.nombre + ' x' + i.qty).join(' | '), v.total, v.metodo_pago]));
   downloadCSV(rows, 'lembe_ventas.csv');
 }
+
 function cerrarCaja() {
   if (!cajaVentas.length) { showToast('No hay ventas registradas'); return; }
   const t = Object.values(cajaTotales).reduce((a, b) => a + b, 0);
   alert(`CIERRE DE CAJA\n\nTotal: ${fmt(t)}\nVentas: ${cajaVentas.length}\nEfectivo: ${fmt(cajaTotales.efectivo)}\nTransferencia: ${fmt(cajaTotales.transferencia)}\nQR: ${fmt(cajaTotales.qr)}`);
 }
-
 // ============================
 //  PEDIDOS
 // ============================
