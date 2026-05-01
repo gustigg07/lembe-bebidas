@@ -595,15 +595,32 @@ let cajaDescuentos = new Set();
 let movimientosCaja = [];
 let posCategoriaActiva = 'todos';
 
-// ✅ ESTA ES LA FUNCIÓN MAESTRA QUE SOLUCIONA LOS ERRORES DE FECHAS
+// ✅ FUNCIÓN MAESTRA BLINDADA CONTRA ZONAS HORARIAS
 async function cargarDatosDelDia() {
-  const hoy = new Date();
-  hoy.setHours(0, 0, 0, 0); // Desde las 00:00 de hoy
-  const fechaStr = hoy.toISOString();
+  const limite = new Date();
+  limite.setDate(limite.getDate() - 2);
+  const fechaStr = limite.toISOString();
 
   cajaProducts = await getProductos();
-  cajaVentas = await getVentas(fechaStr);
-  movimientosCaja = await getMovimientos(fechaStr);
+  const ventasCrudas = await getVentas(fechaStr);
+  const movsCrudos = await getMovimientos(fechaStr);
+
+  const hoy = new Date();
+  const diaHoy = hoy.getDate();
+  const mesHoy = hoy.getMonth();
+  const anioHoy = hoy.getFullYear();
+
+  cajaVentas = ventasCrudas.filter(v => {
+    if (!v.created_at) return true;
+    const d = new Date(v.created_at);
+    return d.getDate() === diaHoy && d.getMonth() === mesHoy && d.getFullYear() === anioHoy;
+  });
+
+  movimientosCaja = movsCrudos.filter(m => {
+    if (!m.created_at) return true;
+    const d = new Date(m.created_at);
+    return d.getDate() === diaHoy && d.getMonth() === mesHoy && d.getFullYear() === anioHoy;
+  });
 }
 
 async function renderCaja() {
@@ -613,7 +630,7 @@ async function renderCaja() {
     <button class="btn-out" onclick="verFlujoDia()">Flujo del Día</button>
     <button class="btn-red" onclick="iniciarCierre()">Cerrar Caja</button>`;
   
-  await cargarDatosDelDia(); // Sincroniza al entrar a la pantalla
+  await cargarDatosDelDia();
 
   document.getElementById('pageContent').innerHTML = `
     <div class="metrics" style="margin-bottom:1rem">
@@ -848,7 +865,6 @@ async function cobrar() {
       if (prodOriginal) await upsertProducto({...prodOriginal, stock: Math.max(0,Number(prodOriginal.stock)-Number(item.qty))});
     }
     
-    // ✅ LLAMAMOS A LA FUNCIÓN MAESTRA
     await cargarDatosDelDia();
     
     showTicket({items:cajaPOS, subtotal, descPct, descMonto, total, metodo:cajaPayMethod});
@@ -885,7 +901,6 @@ async function anularVenta(id) {
 
   showToast('Venta anulada correctamente');
   
-  // ✅ LLAMAMOS A LA FUNCIÓN MAESTRA
   await cargarDatosDelDia();
   
   renderCajaMetrics();
@@ -944,13 +959,19 @@ function renderCajaHist() {
   }).join('') || '<div style="padding:1rem;text-align:center;color:var(--muted);font-size:12px">Sin ventas aún</div>';
 }
 
-// ---- FLUJO, APERTURA Y CIERRE ----
+// ---- FLUJO Y MOVIMIENTOS ----
 async function abrirModalApertura() {
   const inicial = prompt("💸 APERTURA DE CAJA\n\n¿Con cuánto dinero físico (billetes/cambio) arrancás la caja hoy?");
   if (inicial !== null && inicial !== "") {
-    await insertMovimiento({ tipo: 'apertura', monto: Number(inicial)||0, descripcion: 'Apertura de caja', metodo_pago: 'efectivo' });
-    showToast('Caja abierta exitosamente');
-    await cargarDatosDelDia(); // Sincroniza al instante
+    const res = await insertMovimiento({ tipo: 'apertura', monto: Number(inicial)||0, descripcion: 'Apertura de caja', metodo_pago: 'efectivo' });
+    if (res && res.ok) {
+      showToast('Caja abierta exitosamente');
+      await cargarDatosDelDia();
+      renderCajaMetrics();
+      renderCajaHist();
+    } else {
+      alert("🚨 ERROR: " + (res ? res.msg : "Sin conexión"));
+    }
   }
 }
 
@@ -963,11 +984,17 @@ async function guardarMovimiento() {
   const desc = document.getElementById('movDesc').value.trim();
   if(!monto || !desc) { alert("Completá el monto y el motivo"); return; }
   
-  await insertMovimiento({ tipo, monto, descripcion: desc, metodo_pago: metodo });
-  closeModal('movModal');
-  showToast('Movimiento registrado con éxito');
+  const res = await insertMovimiento({ tipo, monto, descripcion: desc, metodo_pago: metodo });
   
-  await cargarDatosDelDia(); // Sincroniza al instante
+  if (res && res.ok) {
+    closeModal('movModal');
+    showToast('Movimiento registrado con éxito');
+    await cargarDatosDelDia();
+    renderCajaMetrics();
+    renderCajaHist();
+  } else {
+    alert("🚨 ERROR DE BASE DE DATOS: " + (res ? res.msg : "Sin conexión"));
+  }
 }
 
 function armarFlujoOrdenado() {
@@ -986,7 +1013,7 @@ function armarFlujoOrdenado() {
 function verFlujoDia() {
   const flujo = armarFlujoOrdenado();
   document.getElementById('flujoTableBody').innerHTML = flujo.map(f => {
-    if (f.tipo === 'venta' && f.estado === 'cancelada') return ''; // Ocultamos la venta si se canceló
+    if (f.tipo === 'venta' && f.estado === 'cancelada') return ''; 
     
     let color = (f.tipo==='venta'||f.tipo==='ingreso'||f.tipo==='apertura') ? '#4CAF50' : 
                 (f.tipo==='egreso'?'var(--red)':
@@ -1057,63 +1084,7 @@ async function confirmarCierre() {
   
   await cargarDatosDelDia();
 }
-// ✅ 1. FUNCIÓN MAESTRA BLINDADA CONTRA ZONAS HORARIAS
-async function cargarDatosDelDia() {
-  // Le pedimos a Supabase los datos desde hace 2 días para asegurarnos de que el servidor (UTC) no oculte nada
-  const limite = new Date();
-  limite.setDate(limite.getDate() - 2);
-  const fechaStr = limite.toISOString();
 
-  cajaProducts = await getProductos();
-  const ventasCrudas = await getVentas(fechaStr);
-  const movsCrudos = await getMovimientos(fechaStr);
-
-  // Filtramos localmente para que solo quede lo que EXACTAMENTE pasó "Hoy" en tu computadora
-  const hoy = new Date();
-  const diaHoy = hoy.getDate();
-  const mesHoy = hoy.getMonth();
-  const anioHoy = hoy.getFullYear();
-
-  cajaVentas = ventasCrudas.filter(v => {
-    if (!v.created_at) return true;
-    const d = new Date(v.created_at);
-    return d.getDate() === diaHoy && d.getMonth() === mesHoy && d.getFullYear() === anioHoy;
-  });
-
-  movimientosCaja = movsCrudos.filter(m => {
-    if (!m.created_at) return true;
-    const d = new Date(m.created_at);
-    return d.getDate() === diaHoy && d.getMonth() === mesHoy && d.getFullYear() === anioHoy;
-  });
-}
-
-// ✅ 2. GUARDAR MOVIMIENTO CON AVISO DE ERRORES Y RECARGA VISUAL
-async function guardarMovimiento() {
-  const tipo = document.getElementById('movTipo').value;
-  const monto = Number(document.getElementById('movMonto').value);
-  const metodo = document.getElementById('movMetodo').value;
-  const desc = document.getElementById('movDesc').value.trim();
-  
-  if(!monto || !desc) { alert("Completá el monto y el motivo"); return; }
-  
-  // Guardamos en la base de datos
-  const res = await insertMovimiento({ tipo, monto, descripcion: desc, metodo_pago: metodo });
-  
-  if (res && res.ok) {
-    closeModal('movModal');
-    showToast('Movimiento registrado con éxito');
-    
-    // Descargamos los datos corregidos
-    await cargarDatosDelDia(); 
-    
-    // Y RECARGAMOS LA PANTALLA VISUALMENTE
-    renderCajaMetrics();
-    renderCajaHist();
-  } else {
-    // Si la base de datos falla por algo, ahora nos va a avisar en rojo
-    alert("🚨 ERROR DE BASE DE DATOS: " + (res ? res.msg : "Falta conexión"));
-  }
-}
 // ============================
 //  PEDIDOS
 // ============================
