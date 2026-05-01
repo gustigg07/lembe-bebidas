@@ -1306,35 +1306,65 @@ function exportPedidos() {
 // ============================
 //  HISTORIAL
 // ============================
-// CORRECCIÓN: Declaramos la variable ACÁ ARRIBA para que no tire error de inicialización
 let histData = [];
 let histFilter = 'todos';
 
 async function renderHistorial() {
-  document.getElementById('topbarActions').innerHTML = `<button class="btn-out" onclick="exportHistorial()">Exportar</button>`;
-  histData = await getVentas();
-  if (!histData) histData = [];
+  document.getElementById('topbarActions').innerHTML = `<button class="btn-out" onclick="exportHistorial()">Exportar Completo</button>`;
+  
+  // Traemos Ventas y Movimientos al mismo tiempo
+  const ventasCrudas = await getVentas();
+  const movsCrudos = await getMovimientos();
+  
+  histData = [];
+  
+  // Agregamos las Ventas
+  (ventasCrudas || []).forEach(v => {
+    histData.push({
+      ...v,
+      tipo_registro: 'venta',
+      display_desc: Array.isArray(v.items) ? v.items.map(i => i.nombre + ' x' + i.qty).join(', ').slice(0, 60) : '-'
+    });
+  });
+
+  // Agregamos los Movimientos (Aperturas, Egresos, Cierres, etc)
+  (movsCrudos || []).forEach(m => {
+    histData.push({
+      created_at: m.created_at,
+      total: m.monto,
+      metodo_pago: m.metodo_pago,
+      estado: 'completado', // Para que no lo marque como tachado
+      tipo_registro: m.tipo, 
+      display_desc: m.descripcion || m.tipo
+    });
+  });
+
+  // Ordenamos TODO del más nuevo al más viejo
+  histData.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
   renderHistContent();
 }
 
 function renderHistContent() {
-  const validas = histData.filter(h => h.estado !== 'cancelada'); // Solo calculamos sobre las que NO están anuladas
-  const total = validas.reduce((a, h) => a + h.total, 0);
-  const avg = validas.length ? Math.round(total / validas.length) : 0;
-  const max = validas.length ? Math.max(...validas.map(h => h.total)) : 0;
-  const ef = validas.filter(h => h.metodo_pago === 'efectivo').reduce((a, h) => a + h.total, 0);
-  const tr = validas.filter(h => h.metodo_pago === 'transferencia').reduce((a, h) => a + h.total, 0);
-  const qr = validas.filter(h => h.metodo_pago === 'qr').reduce((a, h) => a + h.total, 0);
+  // Para las métricas de arriba, usamos SOLO LAS VENTAS (para no inflar el número con tu plata de apertura)
+  const ventasValidas = histData.filter(h => h.tipo_registro === 'venta' && h.estado !== 'cancelada');
+  const total = ventasValidas.reduce((a, h) => a + h.total, 0);
+  const avg = ventasValidas.length ? Math.round(total / ventasValidas.length) : 0;
+  const max = ventasValidas.length ? Math.max(...ventasValidas.map(h => h.total)) : 0;
+  
+  const ef = ventasValidas.filter(h => h.metodo_pago === 'efectivo').reduce((a, h) => a + h.total, 0);
+  const tr = ventasValidas.filter(h => h.metodo_pago === 'transferencia').reduce((a, h) => a + h.total, 0);
+  const qr = ventasValidas.filter(h => h.metodo_pago === 'qr').reduce((a, h) => a + h.total, 0);
 
   document.getElementById('pageContent').innerHTML = `
     <div class="metrics" style="margin-bottom:1rem">
       <div class="metric"><div class="metric-label">Ingresos válidos</div><div class="metric-val" style="color:var(--gold)">${fmt(total)}</div></div>
-      <div class="metric"><div class="metric-label">Ventas válidas</div><div class="metric-val">${validas.length}</div></div>
+      <div class="metric"><div class="metric-label">Ventas válidas</div><div class="metric-val">${ventasValidas.length}</div></div>
       <div class="metric"><div class="metric-label">Ticket promedio</div><div class="metric-val" style="color:var(--gold2)">${fmt(avg)}</div></div>
       <div class="metric"><div class="metric-label">Mayor venta</div><div class="metric-val" style="color:#4CAF50">${fmt(max)}</div></div>
     </div>
     <div class="chart-section">
-      <div class="chart-title">Ingresos por día — últimos 7 días</div>
+      <div class="chart-title">Ingresos por día — últimos 7 días (Solo Ventas)</div>
       <div class="bar-chart" id="histChart"></div>
     </div>
     <div class="method-summary" style="margin-bottom:1rem">
@@ -1344,32 +1374,43 @@ function renderHistContent() {
     </div>
     <div class="table-wrap">
       <div class="t-head" style="grid-template-columns:120px 2fr 120px 100px 90px">
-        <div class="th">Fecha</div><div class="th">Productos</div><div class="th">Método</div><div class="th">Total</div><div class="th">Estado</div>
+        <div class="th">Fecha</div><div class="th">Detalle / Productos</div><div class="th">Método</div><div class="th">Monto</div><div class="th">Estado</div>
       </div>
       <div class="t-body">
         ${histData.map(h => {
           const isCancel = h.estado === 'cancelada';
+          const isMov = h.tipo_registro !== 'venta';
+          
+          let estadoHtml = '';
+          if (isMov) {
+             let badgeColor = h.tipo_registro === 'egreso' ? 'var(--red)' : (h.tipo_registro === 'anulacion' ? 'var(--orange)' : '#4CAF50');
+             estadoHtml = `<span style="font-size:10px; font-weight:bold; color:${badgeColor}; text-transform:uppercase;">${h.tipo_registro}</span>`;
+          } else {
+             estadoHtml = `<span class="status-badge ${isCancel ? 's-cancelado' : 's-completado'}">${h.estado || 'completado'}</span>`;
+          }
+
+          let signo = (h.tipo_registro === 'egreso') ? '-' : '';
+
           return `<div class="t-row" style="grid-template-columns:120px 2fr 120px 100px 90px; opacity: ${isCancel ? '0.5' : '1'}">
             <div class="td muted" style="font-size:11px">${new Date(h.created_at).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>
-            <div class="td muted" style="font-size:11px">${Array.isArray(h.items) ? h.items.map(i => i.nombre + ' x' + i.qty).join(', ').slice(0, 60) : '-'}</div>
+            <div class="td muted" style="font-size:11px">${h.display_desc}</div>
             <div class="td"><span class="type-badge tb-venta">${h.metodo_pago}</span></div>
-            <div class="td gold">${isCancel ? `<del>${fmt(h.total)}</del>` : fmt(h.total)}</div>
-            <div class="td"><span class="status-badge ${isCancel ? 's-cancelado' : 's-completado'}">${h.estado || 'completado'}</span></div>
+            <div class="td gold">${isCancel ? `<del>${fmt(h.total)}</del>` : signo + fmt(h.total)}</div>
+            <div class="td">${estadoHtml}</div>
           </div>`
         }).join('')}
       </div>
     </div>`;
 
-  renderHistChart(validas); // Le pasamos solo las válidas al gráfico
+  renderHistChart(ventasValidas); 
 }
 
-function renderHistChart(validas) {
+function renderHistChart(ventasValidas) {
   const days = [];
   for (let i = 6; i >= 0; i--) {
     const d = new Date(); d.setDate(d.getDate() - i);
     const key = d.toISOString().slice(0, 10);
-    // El gráfico ahora solo calcula ingresos sobre ventas válidas
-    const val = validas.filter(h => h.created_at && h.created_at.slice(0, 10) === key).reduce((a, h) => a + h.total, 0);
+    const val = ventasValidas.filter(h => h.created_at && h.created_at.slice(0, 10) === key).reduce((a, h) => a + h.total, 0);
     days.push({ label: d.getDate() + '/' + String(d.getMonth() + 1).padStart(2, '0'), val });
   }
   const maxVal = Math.max(...days.map(d => d.val), 1);
@@ -1386,15 +1427,16 @@ function renderHistChart(validas) {
 }
 
 function exportHistorial() {
-  const rows = [['Fecha', 'Productos', 'Total', 'Método', 'Estado']];
+  const rows = [['Fecha', 'Tipo', 'Detalle', 'Monto', 'Método', 'Estado']];
   histData.forEach(h => rows.push([
     h.created_at ? h.created_at.slice(0, 16) : '-',
-    Array.isArray(h.items) ? h.items.map(i => i.nombre + ' x' + i.qty).join(' | ') : '-',
+    h.tipo_registro,
+    h.display_desc,
     h.total,
     h.metodo_pago,
     h.estado || 'completado'
   ]));
-  downloadCSV(rows, 'lembe_historial.csv');
+  downloadCSV(rows, 'lembe_historial_completo.csv');
 }
 
 // ============================
