@@ -1500,36 +1500,63 @@ let histData = [];
 let histFilter = 'todos';
 
 async function renderHistorial() {
-  document.getElementById('topbarActions').innerHTML = `<button class="btn-out" onclick="exportHistorial()">Exportar Completo</button>`;
+  // 1. Creamos los selectores de fecha en la barra superior
+  document.getElementById('topbarActions').innerHTML = `
+    <div style="display:flex; gap:.5rem; align-items:center;">
+      <label style="font-size:10px; color:var(--muted)">DESDE:</label>
+      <input type="date" id="histDesde" class="search-box" style="width:135px">
+      <label style="font-size:10px; color:var(--muted)">HASTA:</label>
+      <input type="date" id="histHasta" class="search-box" style="width:135px">
+      <button class="btn" onclick="renderHistorial()">Filtrar</button>
+      <button class="btn-out" onclick="exportHistorial()">Exportar</button>
+    </div>
+  `;
   
-  // Traemos Ventas y Movimientos al mismo tiempo
+  // 2. Traemos todos los datos de la base
   const ventasCrudas = await getVentas();
   const movsCrudos = await getMovimientos();
   
+  // 3. Capturamos los valores de los filtros
+  const desde = document.getElementById('histDesde')?.value;
+  const hasta = document.getElementById('histHasta')?.value;
+
   histData = [];
-  
-  // Agregamos las Ventas
+
+  // 4. Función auxiliar para filtrar por fecha
+  const pasaFiltro = (fechaISO) => {
+    if (!fechaISO) return true;
+    const fechaReg = fechaISO.split('T')[0]; // Extrae solo YYYY-MM-DD[cite: 1]
+    if (desde && fechaReg < desde) return false;
+    if (hasta && fechaReg > hasta) return false;
+    return true;
+  };
+
+  // Agregamos las Ventas filtradas[cite: 1]
   (ventasCrudas || []).forEach(v => {
-    histData.push({
-      ...v,
-      tipo_registro: 'venta',
-      display_desc: Array.isArray(v.items) ? v.items.map(i => i.nombre + ' x' + i.qty).join(', ').slice(0, 60) : '-'
-    });
+    if (pasaFiltro(v.created_at)) {
+      histData.push({
+        ...v,
+        tipo_registro: 'venta',
+        display_desc: Array.isArray(v.items) ? v.items.map(i => i.nombre + ' x' + i.qty).join(', ').slice(0, 60) : '-'
+      });
+    }
   });
 
-  // Agregamos los Movimientos (Aperturas, Egresos, Cierres, etc)
+  // Agregamos los Movimientos filtrados[cite: 1]
   (movsCrudos || []).forEach(m => {
-    histData.push({
-      created_at: m.created_at,
-      total: m.monto,
-      metodo_pago: m.metodo_pago,
-      estado: 'completado', // Para que no lo marque como tachado
-      tipo_registro: m.tipo, 
-      display_desc: m.descripcion || m.tipo
-    });
+    if (pasaFiltro(m.created_at)) {
+      histData.push({
+        created_at: m.created_at,
+        total: m.monto,
+        metodo_pago: m.metodo_pago,
+        estado: 'completado',
+        tipo_registro: m.tipo, 
+        display_desc: m.descripcion || m.tipo
+      });
+    }
   });
 
-  // Ordenamos TODO del más nuevo al más viejo
+  // Ordenamos del más nuevo al más viejo[cite: 1]
   histData.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
   renderHistContent();
