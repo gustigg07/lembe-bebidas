@@ -597,6 +597,7 @@ let posCategoriaActiva = 'todos';
 
 async function renderCaja() {
   document.getElementById('topbarActions').innerHTML = `
+    <button class="btn-out" onclick="abrirModalApertura()">Abrir Caja</button>
     <button class="btn-out" onclick="abrirModalMovimiento()">± Ingreso / Egreso</button>
     <button class="btn-out" onclick="verFlujoDia()">Flujo del Día</button>
     <button class="btn-red" onclick="iniciarCierre()">Cerrar Caja</button>`;
@@ -745,16 +746,18 @@ async function renderCaja() {
   renderPosTiles();
   renderCajaMetrics();
   renderCajaHist();
+}
 
-  // Lógica Apertura de caja automática
-  if (!movimientosCaja.find(m => m.tipo === 'apertura')) {
-    setTimeout(() => {
-      const inicial = prompt("💸 APERTURA DE CAJA\n\n¿Con cuánto dinero físico (billetes/cambio) arrancás la caja hoy?");
-      if (inicial !== null) {
-        insertMovimiento({ tipo: 'apertura', monto: Number(inicial)||0, descripcion: 'Apertura de caja', metodo_pago: 'efectivo' })
-          .then(() => renderCaja());
-      }
-    }, 400);
+// ---- NUEVA LÓGICA DE APERTURA MANUAL ----
+async function abrirModalApertura() {
+  const inicial = prompt("💸 APERTURA DE CAJA\n\n¿Con cuánto dinero físico (billetes/cambio) arrancás la caja hoy?");
+  if (inicial !== null && inicial !== "") {
+    await insertMovimiento({ tipo: 'apertura', monto: Number(inicial)||0, descripcion: 'Apertura de caja', metodo_pago: 'efectivo' });
+    showToast('Caja abierta exitosamente');
+    
+    // Recargamos los movimientos para que aparezcan enseguida
+    const hoy = new Date(); hoy.setHours(0,0,0,0);
+    movimientosCaja = await getMovimientos(hoy.toISOString());
   }
 }
 
@@ -849,45 +852,36 @@ async function cobrar() {
   };
 
   const res = await insertVenta(venta);
-  
   if (res.ok) {
-    // 1. Descontamos el stock
     for (const item of cajaPOS) {
       const prodOriginal = cajaProducts.find(p=>p.id===item.id);
       if (prodOriginal) await upsertProducto({...prodOriginal, stock: Math.max(0,Number(prodOriginal.stock)-Number(item.qty))});
     }
     
-    // 2. SOLUCIÓN: Volvemos a pedirle a Supabase las ventas de hoy para tener el ID exacto y la fecha real
+    // Sincronizamos con Supabase para tener IDs y fechas reales
     const hoy = new Date(); hoy.setHours(0,0,0,0);
     cajaVentas = await getVentas(hoy.toISOString());
     movimientosCaja = await getMovimientos(hoy.toISOString());
     
-    // 3. Mostramos el ticket y recargamos la pantalla
     showTicket({items:cajaPOS, subtotal, descPct, descMonto, total, metodo:cajaPayMethod});
     resetDescuentos();
     cajaProducts = await getProductos();
     renderCajaMetrics();
     renderCajaHist();
     renderPosTiles();
-    
     showToast("Venta registrada correctamente");
-  } else { 
-    alert("Error: " + res.msg); 
-  }
+  } else { alert("Error: " + res.msg); }
 }
 
-
 async function anularVenta(id) {
-  if (!confirm('¿Estás seguro de anular esta venta? El dinero se restará de la caja y los productos volverán al stock automáticamente.')) return;
+  if (!confirm('¿Estás seguro de anular esta venta? El dinero se restará de la caja y los productos volverán al stock.')) return;
   
   const venta = cajaVentas.find(v => v.id === id);
   if (!venta) return;
 
-  // Marcar cancelada en Supabase
   const { error } = await supabase.from('ventas').update({ estado: 'cancelada' }).eq('id', id);
   if (error) { showToast('Error al anular: ' + error.message); return; }
 
-  // Devolver productos al stock
   for (const item of venta.items) {
     const prod = cajaProducts.find(p => p.id === item.id);
     if (prod) {
@@ -895,7 +889,6 @@ async function anularVenta(id) {
     }
   }
 
-  // Registrar anulación en Flujo
   await insertMovimiento({ 
     tipo: 'anulacion', 
     monto: venta.total, 
@@ -907,7 +900,8 @@ async function anularVenta(id) {
   showToast('Venta anulada correctamente');
   
   cajaProducts = await getProductos();
-  movimientosCaja = await getMovimientos(new Date().toISOString().slice(0,10));
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  movimientosCaja = await getMovimientos(hoy.toISOString());
   renderCajaMetrics();
   renderCajaHist();
   renderPosTiles();
@@ -925,7 +919,7 @@ function showTicket(v) {
 }
 function closeTicket() { cajaPOS=[]; resetDescuentos(); renderPosCart(); closeModal('ticketModal'); }
 
-// ---- MÉTRICAS E HISTORIAL (IGNORANDO CANCELADAS) ----
+// ---- MÉTRICAS E HISTORIAL ----
 function renderCajaMetrics() {
   let ef=0, tr=0, qr=0, t=0, count=0;
   cajaVentas.forEach(v => {
@@ -964,7 +958,7 @@ function renderCajaHist() {
   }).join('') || '<div style="padding:1rem;text-align:center;color:var(--muted);font-size:12px">Sin ventas aún</div>';
 }
 
-// ---- FLUJO Y CIERRE ----
+// ---- FLUJO Y CIERRE CON FECHAS BLINDADAS ----
 function abrirModalMovimiento() { openModal('movModal'); document.getElementById('movMonto').value=''; document.getElementById('movDesc').value=''; }
 
 async function guardarMovimiento() {
@@ -977,13 +971,23 @@ async function guardarMovimiento() {
   await insertMovimiento({ tipo, monto, descripcion: desc, metodo_pago: metodo });
   closeModal('movModal');
   showToast('Movimiento registrado con éxito');
-  renderCaja();
+  
+  // Recargamos el flujo al instante
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  movimientosCaja = await getMovimientos(hoy.toISOString());
 }
 
+// ✅ ACÁ SE ARREGLÓ EL PROBLEMA DEL ORDEN DE LAS FECHAS
 function armarFlujoOrdenado() {
   let flujo = [];
-  cajaVentas.forEach(v => flujo.push({ hora: new Date(v.created_at).getTime(), tipo: 'venta', desc: 'Venta ticket', monto: v.total, metodo: v.metodo_pago, estado: v.estado }));
-  movimientosCaja.forEach(m => flujo.push({ hora: new Date(m.created_at).getTime(), tipo: m.tipo, desc: m.descripcion, monto: m.monto, metodo: m.metodo_pago }));
+  cajaVentas.forEach(v => {
+    let t = v.created_at ? new Date(v.created_at).getTime() : Date.now();
+    flujo.push({ hora: t, tipo: 'venta', desc: 'Venta ticket', monto: v.total, metodo: v.metodo_pago, estado: v.estado });
+  });
+  movimientosCaja.forEach(m => {
+    let t = m.created_at ? new Date(m.created_at).getTime() : Date.now();
+    flujo.push({ hora: t, tipo: m.tipo, desc: m.descripcion, monto: m.monto, metodo: m.metodo_pago, estado: 'completado' });
+  });
   return flujo.sort((a,b) => a.hora - b.hora);
 }
 
@@ -1058,7 +1062,10 @@ async function confirmarCierre() {
   await insertMovimiento({ tipo: 'cierre', monto: real, descripcion: detalle, metodo_pago: 'efectivo' });
   closeModal('cierreModal');
   showToast('Caja cerrada. Excelente jornada!');
-  renderCaja();
+  
+  // Recargamos por última vez
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  movimientosCaja = await getMovimientos(hoy.toISOString());
 }
 
 // ============================
