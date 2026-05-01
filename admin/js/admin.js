@@ -585,28 +585,38 @@ function filtrarCatalogo(cat, btn) {
 
 
 // ============================
-//  CAJA / VENTAS
+//  CAJA / VENTAS Y FLUJO DIARIO
 // ============================
 let cajaPOS = [];
 let cajaProducts = [];
 let cajaPayMethod = 'efectivo';
 let cajaVentas = [];
-let cajaTotales = { efectivo: 0, transferencia: 0, qr: 0 };
-let cajaDescuentos = new Set(); // ✅ Agregamos el Set para guardar los descuentos seleccionados
+let cajaDescuentos = new Set();
+let movimientosCaja = [];
 
 async function renderCaja() {
   document.getElementById('topbarActions').innerHTML = `
-    <button class="btn-out" onclick="exportCajaVentas()">Exportar día</button>
-    <button class="btn-red" onclick="cerrarCaja()">Cerrar caja</button>`;
+    <button class="btn-out" onclick="abrirModalMovimiento()">± Ingreso / Egreso</button>
+    <button class="btn-out" onclick="verFlujoDia()">Flujo del Día</button>
+    <button class="btn-red" onclick="iniciarCierre()">Cerrar Caja</button>`;
+  
   cajaProducts = await getProductos();
+  
+  // ✅ Traemos TODO lo de hoy (Ventas y Movimientos) al abrir la pantalla
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  cajaVentas = await getVentas(hoy.toISOString());
+  movimientosCaja = await getMovimientos(hoy.toISOString());
+
   document.getElementById('pageContent').innerHTML = `
     <div class="metrics" style="margin-bottom:1rem">
-      <div class="metric"><div class="metric-label">Total del día</div><div class="metric-val" style="color:var(--gold)" id="cj-total">$0</div></div>
+      <div class="metric"><div class="metric-label">Ingresos de hoy</div><div class="metric-val" style="color:var(--gold)" id="cj-total">$0</div></div>
       <div class="metric"><div class="metric-label">Ventas</div><div class="metric-val" id="cj-count">0</div></div>
-      <div class="metric"><div class="metric-label">Efectivo</div><div class="metric-val" style="color:#4CAF50" id="cj-ef">$0</div></div>
-      <div class="metric"><div class="metric-label">Digital</div><div class="metric-val" style="color:var(--gold2)" id="cj-dig">$0</div></div>
+      <div class="metric"><div class="metric-label">Ventas Efectivo</div><div class="metric-val" style="color:#4CAF50" id="cj-ef">$0</div></div>
+      <div class="metric"><div class="metric-label">Ventas Digital</div><div class="metric-val" style="color:var(--gold2)" id="cj-dig">$0</div></div>
     </div>
+    
     <div class="pos-layout" style="margin:0 -2rem;border-top:0.5px solid var(--border)">
+      <!-- Panel Izquierdo: Buscador y Grilla -->
       <div class="pos-left">
         <input class="search-box" style="width:100%" type="text" placeholder="Buscar producto..." id="posSearch" oninput="renderPosTiles()">
         <div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:.8rem" id="posCatFilters">
@@ -617,16 +627,15 @@ async function renderCaja() {
           <button class="filter-btn" onclick="setPosCategoria('Espirituosas',this)">Espirituosas</button>
           <button class="filter-btn" onclick="setPosCategoria('Sin alcohol',this)">Sin alcohol</button>
           <button class="filter-btn" onclick="setPosCategoria('Combos',this)">Combos</button>
-          <button class="filter-btn" onclick="setPosCategoria('Aceite de oliva',this)">Aceite de oliva</button>
-          <button class="filter-btn" onclick="setPosCategoria('Copa del día',this)">Copa del día</button>
-          <button class="filter-btn" onclick="setPosCategoria('Extras',this)">Extras</button>
         </div>
         <div class="prod-tile-grid" id="posTiles"></div>
         <div>
-          <div style="font-size:9px;letter-spacing:.3em;text-transform:uppercase;color:var(--muted);margin-bottom:.8rem">Ventas del día</div>
+          <div style="font-size:9px;letter-spacing:.3em;text-transform:uppercase;color:var(--muted);margin-bottom:.8rem">Últimas Ventas</div>
           <div id="cajaHist" style="display:flex;flex-direction:column;gap:.4rem;max-height:200px;overflow-y:auto"></div>
         </div>
       </div>
+      
+      <!-- Panel Derecho: Carrito -->
       <div class="pos-right">
         <div class="pos-right-header">
           <div class="pos-right-title">Venta actual</div>
@@ -639,7 +648,6 @@ async function renderCaja() {
             <div class="pos-total-row main"><span>Total</span><span id="posTotal">$0</span></div>
           </div>
           
-          <!-- ✅ BOTONERA DE DESCUENTOS RECUPERADA -->
           <div style="margin-bottom:.8rem">
             <div style="font-size:9px;letter-spacing:.3em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem">Descuento <span id="descTotalLabel" style="color:var(--orange)"></span></div>
             <div class="pm-btns">
@@ -647,7 +655,6 @@ async function renderCaja() {
               <button class="pm-btn desc-btn" id="desc-10" onclick="toggleDesc(10)">10%</button>
               <button class="pm-btn desc-btn" id="desc-15" onclick="toggleDesc(15)">15%</button>
               <button class="pm-btn desc-btn" id="desc-20" onclick="toggleDesc(20)">20%</button>
-              <button class="pm-btn desc-btn" id="desc-25" onclick="toggleDesc(25)">25%</button>
               <button class="pm-btn desc-btn" id="desc-50" onclick="toggleDesc(50)">50%</button>
             </div>
           </div>
@@ -662,41 +669,101 @@ async function renderCaja() {
       </div>
     </div>
     
+    <!-- Modales Mantenidos (Ticket) -->
     <div class="modal-bg" id="ticketModal" onclick="if(event.target===this)closeTicket()">
       <div class="ticket">
-        <div class="ticket-logo">LEMBE</div>
-        <div class="ticket-sub">Tienda de Bebidas</div>
-        <hr class="ticket-divider">
-        <div id="ticketItems"></div>
-        <hr class="ticket-divider">
-        
-        <!-- ✅ FILAS DE DESCUENTO EN EL TICKET RECUPERADAS -->
+        <div class="ticket-logo">LEMBE</div><div class="ticket-sub">Tienda de Bebidas</div><hr class="ticket-divider">
+        <div id="ticketItems"></div><hr class="ticket-divider">
         <div class="ticket-total-row" style="color:var(--cream)"><span>Subtotal</span><span id="ticketSub"></span></div>
         <div id="ticketDescRow" class="ticket-total-row" style="color:#e07a30;display:none"><span id="ticketDescLabel">Descuento</span><span id="ticketDescAmt"></span></div>
         <div class="ticket-total-row" style="font-size:1.1rem;font-weight:700"><span>Total</span><span id="ticketTotal"></span></div>
-        
         <div id="ticketMethod" style="font-size:10px;color:var(--muted);text-align:center;margin-top:.4rem"></div>
-        <hr class="ticket-divider">
-        <div class="ticket-thanks">¡Gracias por tu compra!</div>
-        <div style="font-size:10px;color:var(--muted);margin-bottom:1.2rem">@lembe_bebidas</div>
-        <button class="cobrar-btn" onclick="closeTicket()">Nueva venta</button>
+        <button class="cobrar-btn" style="margin-top:1.5rem" onclick="closeTicket()">Nueva venta</button>
+      </div>
+    </div>
+    
+    <!-- ✅ NUEVO MODAL: Ingreso / Egreso -->
+    <div class="modal-bg" id="movModal" onclick="if(event.target===this)closeModal('movModal')">
+      <div class="modal">
+        <button class="close-modal" onclick="closeModal('movModal')">✕</button>
+        <div class="modal-title">Registrar Movimiento</div>
+        <div class="form-grid">
+          <div class="form-row"><label class="form-label">Tipo</label><select class="form-select" id="movTipo"><option value="ingreso">Ingreso de dinero</option><option value="egreso">Retiro / Pago a proveedor</option></select></div>
+          <div class="form-row"><label class="form-label">Monto ($)</label><input class="form-input" type="number" id="movMonto"></div>
+        </div>
+        <div class="form-grid">
+          <div class="form-row"><label class="form-label">Método</label><select class="form-select" id="movMetodo"><option value="efectivo">Efectivo</option><option value="transferencia">Transferencia</option><option value="qr">QR</option></select></div>
+          <div class="form-row"><label class="form-label">Motivo</label><input class="form-input" id="movDesc" placeholder="Ej: Pago a proveedor de hielo"></div>
+        </div>
+        <div class="modal-footer"><button class="btn-out" onclick="closeModal('movModal')">Cancelar</button><button class="btn" onclick="guardarMovimiento()">Guardar</button></div>
+      </div>
+    </div>
+
+    <!-- ✅ NUEVO MODAL: Flujo del Día -->
+    <div class="modal-bg" id="flujoModal" onclick="if(event.target===this)closeModal('flujoModal')">
+      <div class="modal" style="max-width: 650px;">
+        <button class="close-modal" onclick="closeModal('flujoModal')">✕</button>
+        <div class="modal-title">Flujo de Caja del Día</div>
+        <div class="table-wrap" style="max-height: 400px; overflow-y: auto; margin-bottom:1.5rem;">
+          <div class="t-head" style="grid-template-columns: 70px 100px 1fr 100px 100px;">
+            <div class="th">Hora</div><div class="th">Tipo</div><div class="th">Detalle</div><div class="th">Método</div><div class="th">Monto</div>
+          </div>
+          <div class="t-body" id="flujoTableBody"></div>
+        </div>
+        <div class="modal-footer" style="justify-content: space-between;">
+           <div style="font-size:12px; color:var(--muted)">Todo el historial de la jornada</div>
+           <button class="btn" onclick="exportFlujo()">Descargar CSV</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ✅ NUEVO MODAL: Cierre de Caja -->
+    <div class="modal-bg" id="cierreModal" onclick="if(event.target===this)closeModal('cierreModal')">
+      <div class="modal">
+        <button class="close-modal" onclick="closeModal('cierreModal')">✕</button>
+        <div class="modal-title">Cierre de Caja (Efectivo)</div>
+        <div style="background:var(--dark3); padding:1.5rem; border-radius:4px; margin-bottom:1.5rem; text-align:center;">
+           <div style="font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.2em; margin-bottom:.5rem;">Efectivo que DEBERÍA haber</div>
+           <div style="font-size:2.5rem; font-family:'Playfair Display',serif; color:var(--gold);" id="cierreEsperado">$0</div>
+        </div>
+        <div class="form-row">
+           <label class="form-label" style="text-align:center;font-size:12px">¿Cuánto billete físico hay REALMENTE en la caja?</label>
+           <input class="form-input" type="number" id="cierreReal" style="font-size:1.8rem; text-align:center; padding:1rem;" placeholder="Ingresá el monto" oninput="calcDiferenciaCierre()">
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-bottom:1.5rem; padding:1rem; border-top:1px solid var(--border); border-bottom:1px solid var(--border);">
+           <span style="font-size:12px; color:var(--muted);">Diferencia detectada:</span>
+           <span style="font-weight:bold; font-size:1.3rem;" id="cierreDif">$0</span>
+        </div>
+        <div class="modal-footer"><button class="btn-out" onclick="closeModal('cierreModal')">Cancelar</button><button class="btn-red" onclick="confirmarCierre()">Registrar Cierre</button></div>
       </div>
     </div>`;
+
   cajaPOS = [];
   posCategoriaActiva = 'todos';
   renderPosTiles();
   renderCajaMetrics();
+  renderCajaHist();
+
+  // ✅ LÓGICA DE APERTURA DE CAJA: Si hoy no hubo apertura, la pide
+  if (!movimientosCaja.find(m => m.tipo === 'apertura')) {
+    setTimeout(() => {
+      const inicial = prompt("💸 APERTURA DE CAJA\n\n¿Con cuánto dinero físico (billetes/cambio) arrancás la caja hoy?");
+      if (inicial !== null) {
+        insertMovimiento({ tipo: 'apertura', monto: Number(inicial)||0, descripcion: 'Apertura de caja', metodo_pago: 'efectivo' })
+          .then(() => renderCaja()); // Recarga para impactar
+      }
+    }, 400);
+  }
 }
 
+// ---- LOGICA DE POS, TABS Y CARRITO MANTENIDA IGUAL ----
 let posCategoriaActiva = 'todos';
-
 function setPosCategoria(cat, btn) {
   posCategoriaActiva = cat;
   document.querySelectorAll('#posCatFilters .filter-btn').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
   renderPosTiles();
 }
-
 function renderPosTiles() {
   const q = (document.getElementById('posSearch')?.value || '').toLowerCase();
   const list = cajaProducts.filter(p => {
@@ -710,15 +777,13 @@ function renderPosTiles() {
       <div class="pt-name">${p.nombre}</div>
       <div class="pt-price">${fmt(p.precio)}</div>
       <div class="pt-stock">${p.stock > 0 ? p.stock + ' u.' : 'Agotado'}</div>
-    </div>`).join('') : '<div style="padding:1rem;text-align:center;color:var(--muted);font-size:12px;grid-column:1/-1">Sin productos en esta categoría</div>';
+    </div>`).join('') : '<div style="padding:1rem;color:var(--muted);font-size:12px;grid-column:1/-1;text-align:center">Sin resultados</div>';
 }
-
 function posAdd(id) {
   const prod = cajaProducts.find(p => p.id === id);
   if (!prod || prod.stock === 0) return;
   const ex = cajaPOS.find(c => c.id === id);
-  if (ex) { if (ex.qty < prod.stock) ex.qty++; }
-  else cajaPOS.push({ ...prod, qty: 1 });
+  if (ex) { if (ex.qty < prod.stock) ex.qty++; } else cajaPOS.push({ ...prod, qty: 1 });
   renderPosCart();
 }
 function posChg(id, d) {
@@ -728,160 +793,195 @@ function posChg(id, d) {
   if (item.qty <= 0) cajaPOS = cajaPOS.filter(c => c.id !== id);
   renderPosCart();
 }
-
 function renderPosCart() {
-  const count    = cajaPOS.reduce((a, c) => a + c.qty, 0);
+  const count = cajaPOS.reduce((a, c) => a + c.qty, 0);
   const subtotal = cajaPOS.reduce((a, c) => a + c.precio * c.qty, 0);
-
-  // ✅ CÁLCULO DE DESCUENTOS RECUPERADO
-  const descPct   = [...cajaDescuentos].reduce((a, v) => a + v, 0);
+  const descPct = [...cajaDescuentos].reduce((a, v) => a + v, 0);
   const descMonto = Math.round(subtotal * descPct / 100);
-  const total     = subtotal - descMonto;
+  const total = subtotal - descMonto;
 
   document.getElementById('posItemCount').textContent = count + ' item' + (count !== 1 ? 's' : '');
   document.getElementById('posCart').innerHTML = cajaPOS.length ? cajaPOS.map(item => `
-    <div class="cart-item-row">
-      <div style="font-size:1.2rem;flex-shrink:0">${item.emoji || '🍷'}</div>
-      <div style="flex:1"><div class="ci-name">${item.nombre}</div><div class="ci-price-sm">${fmt(item.precio)} c/u</div></div>
-      <div class="action-btns">
-        <button class="act-btn" onclick="posChg(${item.id},-1)">−</button>
-        <span style="font-size:13px;color:var(--cream);min-width:20px;text-align:center">${item.qty}</span>
-        <button class="act-btn" onclick="posChg(${item.id},1)">+</button>
-      </div>
-      <div class="ci-sub">${fmt(item.precio * item.qty)}</div>
-    </div>`).join('') : '<div class="cart-empty-msg">Agregá productos</div>';
+    <div class="cart-item-row"><div style="font-size:1.2rem;flex-shrink:0">${item.emoji||'🍷'}</div><div style="flex:1"><div class="ci-name">${item.nombre}</div><div class="ci-price-sm">${fmt(item.precio)} c/u</div></div><div class="action-btns"><button class="act-btn" onclick="posChg(${item.id},-1)">−</button><span style="font-size:13px;color:var(--cream);min-width:20px;text-align:center">${item.qty}</span><button class="act-btn" onclick="posChg(${item.id},1)">+</button></div><div class="ci-sub">${fmt(item.precio*item.qty)}</div></div>`).join('') : '<div class="cart-empty-msg">Agregá productos</div>';
 
   document.getElementById('posSub').textContent = fmt(subtotal);
-
-  // Fila de descuento: aparece solo si hay algo seleccionado
   const descLabel = document.getElementById('descTotalLabel');
-  if (descPct > 0 && cajaPOS.length) {
-    descLabel.textContent = `— ${descPct}% = -${fmt(descMonto)}`;
-  } else {
-    descLabel.textContent = '';
-  }
-
+  if (descPct > 0 && cajaPOS.length) descLabel.textContent = `— ${descPct}% = -${fmt(descMonto)}`;
+  else descLabel.textContent = '';
   document.getElementById('posTotal').textContent = fmt(total);
   document.getElementById('posCobraBtn').disabled = cajaPOS.length === 0;
 }
-
-// ✅ FUNCIONES DE DESCUENTO RECUPERADAS
 function toggleDesc(pct) {
-  if (cajaDescuentos.has(pct)) {
-    cajaDescuentos.delete(pct);
-    document.getElementById('desc-' + pct)?.classList.remove('sel');
-  } else {
-    cajaDescuentos.add(pct);
-    document.getElementById('desc-' + pct)?.classList.add('sel');
-  }
+  if (cajaDescuentos.has(pct)) { cajaDescuentos.delete(pct); document.getElementById('desc-'+pct)?.classList.remove('sel'); }
+  else { cajaDescuentos.add(pct); document.getElementById('desc-'+pct)?.classList.add('sel'); }
   renderPosCart();
 }
-
 function resetDescuentos() {
   cajaDescuentos.clear();
-  [5, 10, 15, 20, 25, 50].forEach(v => document.getElementById('desc-' + v)?.classList.remove('sel'));
-  const lbl = document.getElementById('descTotalLabel');
-  if (lbl) lbl.textContent = '';
+  [5,10,15,20,50].forEach(v => document.getElementById('desc-'+v)?.classList.remove('sel'));
+  if (document.getElementById('descTotalLabel')) document.getElementById('descTotalLabel').textContent = '';
 }
-
 function selectPM(pm) {
   cajaPayMethod = pm;
-  ['efectivo', 'transferencia', 'qr'].forEach(m => document.getElementById('pm-' + m)?.classList.toggle('sel', m === pm));
+  ['efectivo','transferencia','qr'].forEach(m => document.getElementById('pm-'+m)?.classList.toggle('sel', m===pm));
+}
+
+// ---- METRICAS Y VENTA ----
+function renderCajaMetrics() {
+  let ef=0, tr=0, qr=0, t=0;
+  cajaVentas.forEach(v => {
+    t += v.total;
+    if (v.metodo_pago === 'efectivo') ef += v.total;
+    if (v.metodo_pago === 'transferencia') tr += v.total;
+    if (v.metodo_pago === 'qr') qr += v.total;
+  });
+  document.getElementById('cj-total').textContent = fmt(t);
+  document.getElementById('cj-count').textContent = cajaVentas.length;
+  document.getElementById('cj-ef').textContent = fmt(ef);
+  document.getElementById('cj-dig').textContent = fmt(tr + qr);
+}
+function renderCajaHist() {
+  document.getElementById('cajaHist').innerHTML = cajaVentas.slice(0,6).map(v => {
+    let hora = new Date(v.created_at || Date.now()).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+    return `<div style="background:var(--dark);border:0.5px solid var(--border);padding:.7rem 1rem;display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+      <div style="font-size:11px;color:var(--muted)">${hora} · ${v.items?v.items.length:0} prod.</div>
+      <div style="font-family:'Playfair Display',serif;font-size:1rem;color:var(--gold)">${fmt(v.total)}</div>
+    </div>`;
+  }).join('') || '<div style="padding:1rem;text-align:center;color:var(--muted);font-size:12px">Sin ventas aún</div>';
 }
 
 async function cobrar() {
   if (!cajaPOS.length) return;
-
-  const subtotal  = cajaPOS.reduce((a, c) => a + (Number(c.precio) * Number(c.qty)), 0);
-  const descPct   = [...cajaDescuentos].reduce((a, v) => a + v, 0);
-  const descMonto = Math.round(subtotal * descPct / 100);
-  const total     = subtotal - descMonto;
+  const subtotal = cajaPOS.reduce((a,c)=>a+(Number(c.precio)*Number(c.qty)),0);
+  const descPct = [...cajaDescuentos].reduce((a,v)=>a+v,0);
+  const descMonto = Math.round(subtotal*descPct/100);
+  const total = subtotal - descMonto;
 
   const venta = {
-    items: cajaPOS.map(c => ({ id: c.id, nombre: c.nombre, qty: Number(c.qty), precio: Number(c.precio) })),
-    subtotal: Math.round(subtotal), // ✅ Ahora se guarda el subtotal
-    descuento_pct: descPct,         // ✅ Se guarda el % de descuento
-    descuento_monto: descMonto,     // ✅ Se guarda la plata descontada
-    total: Math.round(total),
-    metodo_pago: cajaPayMethod,
-    estado: 'completado'
+    items: cajaPOS.map(c=>({id:c.id,nombre:c.nombre,qty:Number(c.qty),precio:Number(c.precio)})),
+    subtotal: Math.round(subtotal), descuento_pct: descPct, descuento_monto: descMonto,
+    total: Math.round(total), metodo_pago: cajaPayMethod, estado: 'completado'
   };
 
   const res = await insertVenta(venta);
-
   if (res.ok) {
     for (const item of cajaPOS) {
-      const prodOriginal = cajaProducts.find(p => p.id === item.id);
-      if (prodOriginal) {
-        const productoActualizado = { ...prodOriginal, stock: Math.max(0, Number(prodOriginal.stock) - Number(item.qty)) };
-        await upsertProducto(productoActualizado);
-      }
+      const prodOriginal = cajaProducts.find(p=>p.id===item.id);
+      if (prodOriginal) await upsertProducto({...prodOriginal, stock: Math.max(0,Number(prodOriginal.stock)-Number(item.qty))});
     }
-
-    cajaTotales[cajaPayMethod] += total;
-    cajaVentas.unshift({ ...venta, hora: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) });
-
-    showTicket({ items: cajaPOS, subtotal, descPct, descMonto, total, metodo: cajaPayMethod });
-
+    // Agregamos a la lista local para verla enseguida sin recargar base de datos
+    cajaVentas.unshift({...venta, created_at: new Date().toISOString()});
+    showTicket({items:cajaPOS, subtotal, descPct, descMonto, total, metodo:cajaPayMethod});
     resetDescuentos();
     cajaProducts = await getProductos();
     renderCajaMetrics();
     renderCajaHist();
     renderPosTiles();
-    showToast("Venta realizada y stock actualizado");
-  } else {
-    alert("Error al registrar la venta: " + res.msg);
-  }
+  } else { alert("Error: " + res.msg); }
 }
 
 function showTicket(v) {
-  document.getElementById('ticketItems').innerHTML = v.items.map(i => `<div class="ticket-item-row"><span>${i.emoji || '🍷'} ${i.nombre} x${i.qty}</span><span>${fmt(i.precio * i.qty)}</span></div>`).join('');
-
+  document.getElementById('ticketItems').innerHTML = v.items.map(i=>`<div class="ticket-item-row"><span>${i.emoji||'🍷'} ${i.nombre} x${i.qty}</span><span>${fmt(i.precio*i.qty)}</span></div>`).join('');
   document.getElementById('ticketSub').textContent = fmt(v.subtotal);
-
   const descRow = document.getElementById('ticketDescRow');
-  if (v.descPct > 0) {
-    descRow.style.display = 'flex';
-    document.getElementById('ticketDescLabel').textContent = `Descuento ${v.descPct}%`;
-    document.getElementById('ticketDescAmt').textContent = '-' + fmt(v.descMonto);
-  } else {
-    descRow.style.display = 'none';
-  }
-
+  if(v.descPct > 0) { descRow.style.display='flex'; document.getElementById('ticketDescLabel').textContent=`Descuento ${v.descPct}%`; document.getElementById('ticketDescAmt').textContent='-'+fmt(v.descMonto); } 
+  else descRow.style.display='none';
   document.getElementById('ticketTotal').textContent = fmt(v.total);
-  document.getElementById('ticketMethod').textContent = { efectivo: 'Efectivo', transferencia: 'Transferencia', qr: 'QR / Débito' }[v.metodo] || v.metodo;
+  document.getElementById('ticketMethod').textContent = {efectivo:'Efectivo',transferencia:'Transferencia',qr:'QR / Débito'}[v.metodo]||v.metodo;
   openModal('ticketModal');
 }
+function closeTicket() { cajaPOS=[]; resetDescuentos(); renderPosCart(); closeModal('ticketModal'); }
 
-function closeTicket() { cajaPOS = []; resetDescuentos(); renderPosCart(); closeModal('ticketModal'); }
+// ---- ✅ NUEVAS FUNCIONES DE FLUJO, INGRESO Y CIERRE ----
 
-function renderCajaMetrics() {
-  const t = Object.values(cajaTotales).reduce((a, b) => a + b, 0);
-  document.getElementById('cj-total').textContent = fmt(t);
-  document.getElementById('cj-count').textContent = cajaVentas.length;
-  document.getElementById('cj-ef').textContent = fmt(cajaTotales.efectivo);
-  document.getElementById('cj-dig').textContent = fmt(cajaTotales.transferencia + cajaTotales.qr);
+// 1. Ingresos y Egresos Manuales
+function abrirModalMovimiento() { openModal('movModal'); document.getElementById('movMonto').value=''; document.getElementById('movDesc').value=''; }
+async function guardarMovimiento() {
+  const tipo = document.getElementById('movTipo').value;
+  const monto = Number(document.getElementById('movMonto').value);
+  const metodo = document.getElementById('movMetodo').value;
+  const desc = document.getElementById('movDesc').value.trim();
+  if(!monto || !desc) { alert("Completá el monto y el motivo"); return; }
+  
+  await insertMovimiento({ tipo, monto, descripcion: desc, metodo_pago: metodo });
+  closeModal('movModal');
+  showToast('Movimiento registrado con éxito');
+  renderCaja(); // Recarga la info general
 }
 
-function renderCajaHist() {
-  document.getElementById('cajaHist').innerHTML = cajaVentas.slice(0, 8).map(v => `
-    <div style="background:var(--dark);border:0.5px solid var(--border);padding:.7rem 1rem;display:flex;align-items:center;justify-content:space-between;gap:.8rem">
-      <div style="font-size:11px;color:var(--muted)">${v.hora} · ${v.items.length} prod.</div>
-      <div style="font-family:'Playfair Display',serif;font-size:1rem;color:var(--gold)">${fmt(v.total)}</div>
-    </div>`).join('') || '<div style="padding:1rem;text-align:center;color:var(--muted);font-size:12px">Sin ventas aún</div>';
+// 2. Armar la tabla de Flujo (Mezcla Ventas + Movimientos)
+function armarFlujoOrdenado() {
+  let flujo = [];
+  cajaVentas.forEach(v => flujo.push({ hora: new Date(v.created_at).getTime(), tipo: 'venta', desc: 'Venta ticket', monto: v.total, metodo: v.metodo_pago }));
+  movimientosCaja.forEach(m => flujo.push({ hora: new Date(m.created_at).getTime(), tipo: m.tipo, desc: m.descripcion, monto: m.monto, metodo: m.metodo_pago }));
+  return flujo.sort((a,b) => a.hora - b.hora); // Orden cronológico
 }
 
-function exportCajaVentas() {
-  if (!cajaVentas.length) { showToast('No hay ventas para exportar'); return; }
-  const rows = [['Hora', 'Productos', 'Total', 'Método']];
-  cajaVentas.forEach(v => rows.push([v.hora, v.items.map(i => i.nombre + ' x' + i.qty).join(' | '), v.total, v.metodo_pago]));
-  downloadCSV(rows, 'lembe_ventas.csv');
+function verFlujoDia() {
+  const flujo = armarFlujoOrdenado();
+  document.getElementById('flujoTableBody').innerHTML = flujo.map(f => {
+    let color = (f.tipo==='venta'||f.tipo==='ingreso'||f.tipo==='apertura') ? '#4CAF50' : (f.tipo==='egreso'?'var(--red)':'var(--muted)');
+    let signo = (f.tipo==='egreso') ? '-' : '';
+    return `<div class="t-row" style="grid-template-columns: 70px 100px 1fr 100px 100px;">
+       <div class="td muted" style="font-size:11px">${new Date(f.hora).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div>
+       <div class="td" style="text-transform:uppercase;font-size:9px;color:var(--amber)">${f.tipo}</div>
+       <div class="td">${f.desc}</div>
+       <div class="td muted">${f.metodo}</div>
+       <div class="td" style="color:${color};font-weight:bold">${signo}${fmt(f.monto)}</div>
+    </div>`;
+  }).join('') || '<div style="padding:2rem;text-align:center;color:var(--muted)">Sin movimientos hoy</div>';
+  openModal('flujoModal');
 }
 
-function cerrarCaja() {
-  if (!cajaVentas.length) { showToast('No hay ventas registradas'); return; }
-  const t = Object.values(cajaTotales).reduce((a, b) => a + b, 0);
-  alert(`CIERRE DE CAJA\n\nTotal: ${fmt(t)}\nVentas: ${cajaVentas.length}\nEfectivo: ${fmt(cajaTotales.efectivo)}\nTransferencia: ${fmt(cajaTotales.transferencia)}\nQR: ${fmt(cajaTotales.qr)}`);
+function exportFlujo() {
+  const flujo = armarFlujoOrdenado();
+  if(!flujo.length) { showToast('No hay datos para exportar'); return; }
+  const rows = [['Hora', 'Tipo de Movimiento', 'Descripcion', 'Metodo Pago', 'Monto ($)']];
+  flujo.forEach(f => rows.push([new Date(f.hora).toLocaleTimeString(), f.tipo, f.desc, f.metodo, f.monto]));
+  downloadCSV(rows, `lembe_flujo_${new Date().toISOString().slice(0,10)}.csv`);
+}
+
+// 3. Cierre de Caja
+function calcularEfectivoEsperado() {
+  let esperado = 0;
+  movimientosCaja.forEach(m => {
+    if (m.metodo_pago === 'efectivo') {
+      if (m.tipo === 'apertura' || m.tipo === 'ingreso') esperado += Number(m.monto);
+      if (m.tipo === 'egreso') esperado -= Number(m.monto);
+    }
+  });
+  cajaVentas.forEach(v => { if (v.metodo_pago === 'efectivo') esperado += Number(v.total); });
+  return esperado;
+}
+
+function iniciarCierre() {
+  const esperado = calcularEfectivoEsperado();
+  document.getElementById('cierreEsperado').textContent = fmt(esperado);
+  document.getElementById('cierreReal').value = '';
+  document.getElementById('cierreDif').textContent = '$0';
+  document.getElementById('cierreDif').style.color = 'var(--cream)';
+  openModal('cierreModal');
+}
+
+function calcDiferenciaCierre() {
+  const esperado = calcularEfectivoEsperado();
+  const real = Number(document.getElementById('cierreReal').value) || 0;
+  const dif = real - esperado;
+  const difEl = document.getElementById('cierreDif');
+  difEl.textContent = (dif > 0 ? '+' : '') + fmt(dif);
+  difEl.style.color = dif < 0 ? 'var(--red)' : (dif > 0 ? '#4CAF50' : 'var(--muted)');
+}
+
+async function confirmarCierre() {
+  const esperado = calcularEfectivoEsperado();
+  const real = Number(document.getElementById('cierreReal').value);
+  const dif = real - esperado;
+  const detalle = `Cierre. Esperado: ${fmt(esperado)} | Dif: ${dif > 0 ? '+' : ''}${fmt(dif)}`;
+  
+  await insertMovimiento({ tipo: 'cierre', monto: real, descripcion: detalle, metodo_pago: 'efectivo' });
+  closeModal('cierreModal');
+  showToast('Caja cerrada. Excelente jornada!');
+  renderCaja(); // Recarga
 }
 // ============================
 //  PEDIDOS
