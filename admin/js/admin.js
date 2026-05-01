@@ -595,32 +595,63 @@ let cajaDescuentos = new Set();
 let movimientosCaja = [];
 let posCategoriaActiva = 'todos';
 
-// ✅ FUNCIÓN MAESTRA CON FILTRO DE FECHA LOCAL INFALIBLE
+// ✅ 1. FUNCIÓN MAESTRA (Filtro seguro con matemática de fechas)
 async function cargarDatosDelDia() {
-  // Traemos los datos desde hace 3 días para asegurarnos de que Supabase no nos esconda nada
+  // Descargamos todo desde hace 2 días para que la zona horaria del servidor no nos esconda nada
   const limite = new Date();
-  limite.setDate(limite.getDate() - 3);
+  limite.setDate(limite.getDate() - 2);
   const fechaStr = limite.toISOString();
 
   cajaProducts = await getProductos();
-  
-  // Usamos supabase directamente para saltear cualquier memoria caché
-  const resVentas = await supabase.from('ventas').select('*').gte('created_at', fechaStr).order('created_at', { ascending: false });
-  const resMovs = await supabase.from('movimientos_caja').select('*').gte('created_at', fechaStr).order('created_at', { ascending: true });
+  const ventasCrudas = await getVentas(fechaStr); 
+  const movsCrudos = await getMovimientos(fechaStr);
 
-  // Sacamos la fecha EXACTA de tu computadora hoy (Ej: "1/5/2026")
-  const fechaHoy = new Date().toLocaleDateString();
+  // Fecha exacta de hoy en TU computadora
+  const hoy = new Date();
+  const y = hoy.getFullYear();
+  const m = hoy.getMonth();
+  const d = hoy.getDate();
 
-  // Filtramos para que solo queden los que coinciden con la fecha de hoy
-  cajaVentas = (resVentas.data || []).filter(v => {
+  // Filtramos comparando Año, Mes y Día exactos
+  cajaVentas = (ventasCrudas || []).filter(v => {
     if (!v.created_at) return true;
-    return new Date(v.created_at).toLocaleDateString() === fechaHoy;
+    const fechaObj = new Date(v.created_at);
+    return fechaObj.getFullYear() === y && fechaObj.getMonth() === m && fechaObj.getDate() === d;
   });
 
-  movimientosCaja = (resMovs.data || []).filter(m => {
-    if (!m.created_at) return true;
-    return new Date(m.created_at).toLocaleDateString() === fechaHoy;
+  movimientosCaja = (movsCrudos || []).filter(mov => {
+    if (!mov.created_at) return true;
+    const fechaObj = new Date(mov.created_at);
+    return fechaObj.getFullYear() === y && fechaObj.getMonth() === m && fechaObj.getDate() === d;
   });
+}
+
+// ✅ 2. OBLIGAMOS AL MODAL A ACTUALIZARSE ANTES DE ABRIRSE
+async function verFlujoDia() {
+  // 🔥 MAGIA ACÁ: Le decimos que descargue todo de nuevo JUSTO antes de abrir la ventana
+  await cargarDatosDelDia(); 
+  
+  const flujo = armarFlujoOrdenado();
+  
+  document.getElementById('flujoTableBody').innerHTML = flujo.map(f => {
+    if (f.tipo === 'venta' && f.estado === 'cancelada') return ''; 
+    
+    let color = (f.tipo==='venta'||f.tipo==='ingreso'||f.tipo==='apertura') ? '#4CAF50' : 
+                (f.tipo==='egreso'||f.tipo==='cierre'?'var(--red)':
+                (f.tipo==='anulacion'?'var(--orange)':'var(--muted)'));
+                
+    let signo = (f.tipo==='egreso'||f.tipo==='cierre') ? '-' : (f.tipo==='anulacion' ? '❌ ' : '');
+    
+    return `<div class="t-row" style="grid-template-columns: 70px 100px 1fr 100px 100px;">
+       <div class="td muted" style="font-size:11px">${new Date(f.hora).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div>
+       <div class="td" style="text-transform:uppercase;font-size:9px;color:var(--amber)">${f.tipo}</div>
+       <div class="td">${f.desc}</div>
+       <div class="td muted">${f.metodo}</div>
+       <div class="td" style="color:${color};font-weight:bold">${signo}${fmt(f.monto)}</div>
+    </div>`;
+  }).join('') || '<div style="padding:2rem;text-align:center;color:var(--muted)">Sin movimientos hoy</div>';
+  
+  openModal('flujoModal');
 }
 
 async function renderCaja() {
