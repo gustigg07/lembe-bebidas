@@ -595,28 +595,35 @@ let cajaDescuentos = new Set();
 let movimientosCaja = [];
 let posCategoriaActiva = 'todos';
 
-// ✅ FUNCIÓN MAESTRA BLINDADA CONTRA ZONAS HORARIAS
+// ✅ FUNCIÓN MAESTRA QUE HABLA DIRECTO CON LA BASE DE DATOS BURLANDO LA CACHÉ
 async function cargarDatosDelDia() {
   const limite = new Date();
-  limite.setDate(limite.getDate() - 2);
+  limite.setDate(limite.getDate() - 3); // Buscamos 3 días atrás por seguridad
   const fechaStr = limite.toISOString();
 
   cajaProducts = await getProductos();
-  const ventasCrudas = await getVentas(fechaStr);
-  const movsCrudos = await getMovimientos(fechaStr);
+
+  // 1. Pedimos Ventas directamente
+  const resVentas = await supabase.from('ventas').select('*').gte('created_at', fechaStr).order('created_at', { ascending: false });
+  if (resVentas.error) { alert("🚨 ERROR VENTAS: " + resVentas.error.message); return; }
+
+  // 2. Pedimos Movimientos directamente
+  const resMovs = await supabase.from('movimientos_caja').select('*').gte('created_at', fechaStr).order('created_at', { ascending: true });
+  if (resMovs.error) { alert("🚨 ERROR MOVIMIENTOS: " + resMovs.error.message); return; }
 
   const hoy = new Date();
   const diaHoy = hoy.getDate();
   const mesHoy = hoy.getMonth();
   const anioHoy = hoy.getFullYear();
 
-  cajaVentas = ventasCrudas.filter(v => {
+  // 3. Filtramos exactamente el día de hoy según la hora de tu computadora
+  cajaVentas = (resVentas.data || []).filter(v => {
     if (!v.created_at) return true;
     const d = new Date(v.created_at);
     return d.getDate() === diaHoy && d.getMonth() === mesHoy && d.getFullYear() === anioHoy;
   });
 
-  movimientosCaja = movsCrudos.filter(m => {
+  movimientosCaja = (resMovs.data || []).filter(m => {
     if (!m.created_at) return true;
     const d = new Date(m.created_at);
     return d.getDate() === diaHoy && d.getMonth() === mesHoy && d.getFullYear() === anioHoy;
@@ -892,17 +899,14 @@ async function anularVenta(id) {
     }
   }
 
-  await insertMovimiento({ 
-    tipo: 'anulacion', 
-    monto: venta.total, 
-    descripcion: `Anulación de Venta #${id}`, 
-    metodo_pago: venta.metodo_pago 
+  // Anulación Directa
+  await supabase.from('movimientos_caja').insert({ 
+    tipo: 'anulacion', monto: venta.total, descripcion: `Anulación Venta #${id}`, metodo_pago: venta.metodo_pago 
   });
 
   showToast('Venta anulada correctamente');
   
   await cargarDatosDelDia();
-  
   renderCajaMetrics();
   renderCajaHist();
   renderPosTiles();
@@ -959,18 +963,22 @@ function renderCajaHist() {
   }).join('') || '<div style="padding:1rem;text-align:center;color:var(--muted);font-size:12px">Sin ventas aún</div>';
 }
 
-// ---- FLUJO Y MOVIMIENTOS ----
+// ---- FLUJO, APERTURA Y CIERRE (BURLANDO LA CACHÉ) ----
 async function abrirModalApertura() {
   const inicial = prompt("💸 APERTURA DE CAJA\n\n¿Con cuánto dinero físico (billetes/cambio) arrancás la caja hoy?");
   if (inicial !== null && inicial !== "") {
-    const res = await insertMovimiento({ tipo: 'apertura', monto: Number(inicial)||0, descripcion: 'Apertura de caja', metodo_pago: 'efectivo' });
-    if (res && res.ok) {
+    // ⚠️ Habla directo con Supabase sin usar supabase.js local
+    const res = await supabase.from('movimientos_caja').insert({ 
+      tipo: 'apertura', monto: Number(inicial)||0, descripcion: 'Apertura de caja', metodo_pago: 'efectivo' 
+    }).select();
+    
+    if (res.error) {
+      alert("🚨 ERROR AL ABRIR CAJA: " + res.error.message);
+    } else {
       showToast('Caja abierta exitosamente');
       await cargarDatosDelDia();
       renderCajaMetrics();
       renderCajaHist();
-    } else {
-      alert("🚨 ERROR: " + (res ? res.msg : "Sin conexión"));
     }
   }
 }
@@ -984,16 +992,19 @@ async function guardarMovimiento() {
   const desc = document.getElementById('movDesc').value.trim();
   if(!monto || !desc) { alert("Completá el monto y el motivo"); return; }
   
-  const res = await insertMovimiento({ tipo, monto, descripcion: desc, metodo_pago: metodo });
+  // ⚠️ Habla directo con Supabase
+  const res = await supabase.from('movimientos_caja').insert({ 
+    tipo, monto, descripcion: desc, metodo_pago: metodo 
+  }).select();
   
-  if (res && res.ok) {
+  if (res.error) {
+    alert("🚨 ERROR AL GUARDAR MOVIMIENTO: " + res.error.message);
+  } else {
     closeModal('movModal');
     showToast('Movimiento registrado con éxito');
     await cargarDatosDelDia();
     renderCajaMetrics();
     renderCajaHist();
-  } else {
-    alert("🚨 ERROR DE BASE DE DATOS: " + (res ? res.msg : "Sin conexión"));
   }
 }
 
@@ -1078,10 +1089,18 @@ async function confirmarCierre() {
   const dif = real - esperado;
   const detalle = `Cierre. Esperado: ${fmt(esperado)} | Dif: ${dif > 0 ? '+' : ''}${fmt(dif)}`;
   
-  await insertMovimiento({ tipo: 'cierre', monto: real, descripcion: detalle, metodo_pago: 'efectivo' });
+  // ⚠️ Habla directo con Supabase
+  const res = await supabase.from('movimientos_caja').insert({ 
+    tipo: 'cierre', monto: real, descripcion: detalle, metodo_pago: 'efectivo' 
+  }).select();
+  
+  if (res.error) {
+    alert("🚨 ERROR AL CERRAR CAJA: " + res.error.message);
+    return;
+  }
+
   closeModal('cierreModal');
   showToast('Caja cerrada. Excelente jornada!');
-  
   await cargarDatosDelDia();
 }
 
