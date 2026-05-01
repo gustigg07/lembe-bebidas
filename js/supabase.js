@@ -98,6 +98,34 @@ async function insertMovimiento(mov) {
   const { data, error } = await supabase.from('movimientos_caja').insert(mov).select();
   return error ? { ok: false, msg: error.message } : { ok: true, data };
 }
+// ✅ Obtener movimientos de la base de datos
+async function getMovimientos(fechaDesde = null) {
+  if (!supabase) return [];
+  
+  let query = supabase.from('movimientos_caja').select('*').order('created_at', { ascending: true });
+  
+  // Si pasamos una fecha, filtramos para no traer años de historial innecesario
+  if (fechaDesde) {
+    query = query.gte('created_at', fechaDesde);
+  }
+  
+  const { data, error } = await query;
+  
+  if (error) {
+    console.error("Error en getMovimientos:", error.message);
+    return [];
+  }
+  return data;
+}
+
+// ✅ Insertar un nuevo movimiento (Apertura, Egreso, Ingreso, etc.)
+async function insertMovimiento(mov) {
+  if (!supabase) return { ok: false, msg: 'Sin conexión a Supabase' };
+  
+  const { data, error } = await supabase.from('movimientos_caja').insert(mov).select();
+  
+  return error ? { ok: false, msg: error.message } : { ok: true, data };
+}
 // =============================================
 //  DATOS LOCALES (fallback sin Supabase)
 // =============================================
