@@ -1057,7 +1057,63 @@ async function confirmarCierre() {
   
   await cargarDatosDelDia();
 }
+// ✅ 1. FUNCIÓN MAESTRA BLINDADA CONTRA ZONAS HORARIAS
+async function cargarDatosDelDia() {
+  // Le pedimos a Supabase los datos desde hace 2 días para asegurarnos de que el servidor (UTC) no oculte nada
+  const limite = new Date();
+  limite.setDate(limite.getDate() - 2);
+  const fechaStr = limite.toISOString();
 
+  cajaProducts = await getProductos();
+  const ventasCrudas = await getVentas(fechaStr);
+  const movsCrudos = await getMovimientos(fechaStr);
+
+  // Filtramos localmente para que solo quede lo que EXACTAMENTE pasó "Hoy" en tu computadora
+  const hoy = new Date();
+  const diaHoy = hoy.getDate();
+  const mesHoy = hoy.getMonth();
+  const anioHoy = hoy.getFullYear();
+
+  cajaVentas = ventasCrudas.filter(v => {
+    if (!v.created_at) return true;
+    const d = new Date(v.created_at);
+    return d.getDate() === diaHoy && d.getMonth() === mesHoy && d.getFullYear() === anioHoy;
+  });
+
+  movimientosCaja = movsCrudos.filter(m => {
+    if (!m.created_at) return true;
+    const d = new Date(m.created_at);
+    return d.getDate() === diaHoy && d.getMonth() === mesHoy && d.getFullYear() === anioHoy;
+  });
+}
+
+// ✅ 2. GUARDAR MOVIMIENTO CON AVISO DE ERRORES Y RECARGA VISUAL
+async function guardarMovimiento() {
+  const tipo = document.getElementById('movTipo').value;
+  const monto = Number(document.getElementById('movMonto').value);
+  const metodo = document.getElementById('movMetodo').value;
+  const desc = document.getElementById('movDesc').value.trim();
+  
+  if(!monto || !desc) { alert("Completá el monto y el motivo"); return; }
+  
+  // Guardamos en la base de datos
+  const res = await insertMovimiento({ tipo, monto, descripcion: desc, metodo_pago: metodo });
+  
+  if (res && res.ok) {
+    closeModal('movModal');
+    showToast('Movimiento registrado con éxito');
+    
+    // Descargamos los datos corregidos
+    await cargarDatosDelDia(); 
+    
+    // Y RECARGAMOS LA PANTALLA VISUALMENTE
+    renderCajaMetrics();
+    renderCajaHist();
+  } else {
+    // Si la base de datos falla por algo, ahora nos va a avisar en rojo
+    alert("🚨 ERROR DE BASE DE DATOS: " + (res ? res.msg : "Falta conexión"));
+  }
+}
 // ============================
 //  PEDIDOS
 // ============================
