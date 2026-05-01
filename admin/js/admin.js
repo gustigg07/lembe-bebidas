@@ -545,7 +545,7 @@ async function uploadProductImage(file) {
 const CATEGORIAS = ['Vinos','Espumantes','Cervezas','Espirituosas','Sin alcohol','Combos','Aceite de oliva','Copa del día','Extras'];
 
 async function renderCatalogo() {
-  document.getElementById('topbarActions').innerHTML = `<button class="btn" onclick="goPage('stock')">Gestionar en Stock →</button>`;
+document.getElementById('topbarActions').innerHTML = `<button class="btn" onclick="stockDesbloqueado ? goPage('stock') : mostrarModalPasswordStock()">Gestionar en Stock →</button>`;
   const prods = await getProductos();
   document.getElementById('pageContent').innerHTML = `
     <p style="font-size:12px;color:var(--muted);margin-bottom:1rem">El catálogo se gestiona desde Control de Stock. Aquí podés ver la vista pública.</p>
