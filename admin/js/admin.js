@@ -597,20 +597,35 @@ let posCategoriaActiva = 'todos';
 
 // ✅ 1. FUNCIÓN MAESTRA (Filtro seguro con matemática de fechas)
 async function cargarDatosDelDia() {
-  // Sacamos la fecha de hoy a las 00:00 para el filtro
-  const hoy = new Date();
-  hoy.setHours(0, 0, 0, 0);
-  const fechaFiltro = hoy.toISOString();
+  // Descargamos todo desde hace 2 días para que la zona horaria del servidor no nos esconda nada
+  const limite = new Date();
+  limite.setDate(limite.getDate() - 2);
+  const fechaStr = limite.toISOString();
 
-  // Ahora estas funciones sí existen en supabase.js
   cajaProducts = await getProductos();
-  cajaVentas = await getVentas(fechaFiltro);
-  movimientosCaja = await getMovimientos(fechaFiltro); 
+  const ventasCrudas = await getVentas(fechaStr); 
+  const movsCrudos = await getMovimientos(fechaStr);
 
-  // Logs para que veas en la consola si están llegando los datos
-  console.log("Ventas cargadas:", cajaVentas.length);
-  console.log("Movimientos cargados:", movimientosCaja.length);
+  // Fecha exacta de hoy en TU computadora
+  const hoy = new Date();
+  const y = hoy.getFullYear();
+  const m = hoy.getMonth();
+  const d = hoy.getDate();
+
+  // Filtramos comparando Año, Mes y Día exactos
+  cajaVentas = (ventasCrudas || []).filter(v => {
+    if (!v.created_at) return true;
+    const fechaObj = new Date(v.created_at);
+    return fechaObj.getFullYear() === y && fechaObj.getMonth() === m && fechaObj.getDate() === d;
+  });
+
+  movimientosCaja = (movsCrudos || []).filter(mov => {
+    if (!mov.created_at) return true;
+    const fechaObj = new Date(mov.created_at);
+    return fechaObj.getFullYear() === y && fechaObj.getMonth() === m && fechaObj.getDate() === d;
+  });
 }
+
 // ✅ 2. OBLIGAMOS AL MODAL A ACTUALIZARSE ANTES DE ABRIRSE
 async function verFlujoDia() {
   // 🔥 MAGIA ACÁ: Le decimos que descargue todo de nuevo JUSTO antes de abrir la ventana
@@ -741,18 +756,65 @@ async function renderCaja() {
     </div>
 
     <div class="modal-bg" id="flujoModal" onclick="if(event.target===this)closeModal('flujoModal')">
-      <div class="modal" style="max-width: 650px;">
-        <button class="close-modal" onclick="closeModal('flujoModal')">✕</button>
-        <div class="modal-title">Flujo de Caja del Día</div>
-        <div class="table-wrap" style="max-height: 400px; overflow-y: auto; margin-bottom:1.5rem;">
-          <div class="t-head" style="grid-template-columns: 70px 100px 1fr 100px 100px;">
-            <div class="th">Hora</div><div class="th">Tipo</div><div class="th">Detalle</div><div class="th">Método</div><div class="th">Monto</div>
+      <div class="modal" style="max-width:760px;padding:0;overflow:hidden">
+        <button class="close-modal" onclick="closeModal('flujoModal')" style="top:1rem;right:1rem">✕</button>
+
+        <!-- HEADER STICKY con resumen + filtros -->
+        <div style="position:sticky;top:0;z-index:10;background:var(--dark2,#1a1a1a);border-bottom:1px solid var(--border);padding:1.5rem 2rem 1rem">
+          <div class="modal-title" style="margin-bottom:1rem">Flujo de Caja del Día</div>
+
+          <!-- Resumen de 4 métricas -->
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.6rem;margin-bottom:1rem" id="flujoResumen">
+            <div style="background:var(--dark3);padding:.8rem;text-align:center;border:0.5px solid var(--border)">
+              <div style="font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:.3rem">Apertura</div>
+              <div style="font-family:'Playfair Display',serif;font-size:1.1rem;color:var(--gold)" id="fr-apertura">$0</div>
+            </div>
+            <div style="background:var(--dark3);padding:.8rem;text-align:center;border:0.5px solid var(--border)">
+              <div style="font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:.3rem">Ventas</div>
+              <div style="font-family:'Playfair Display',serif;font-size:1.1rem;color:#4CAF50" id="fr-ventas">$0</div>
+            </div>
+            <div style="background:var(--dark3);padding:.8rem;text-align:center;border:0.5px solid var(--border)">
+              <div style="font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:.3rem">Egresos</div>
+              <div style="font-family:'Playfair Display',serif;font-size:1.1rem;color:var(--red)" id="fr-egresos">$0</div>
+            </div>
+            <div style="background:var(--dark3);padding:.8rem;text-align:center;border:1px solid var(--amber,#c9a84c)">
+              <div style="font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:.3rem">Saldo actual</div>
+              <div style="font-family:'Playfair Display',serif;font-size:1.1rem;color:var(--gold)" id="fr-saldo">$0</div>
+            </div>
+          </div>
+
+          <!-- Filtros por tipo -->
+          <div style="display:flex;gap:.4rem;flex-wrap:wrap">
+            <button class="filter-btn active" onclick="filtrarFlujo('todos',this)">Todos</button>
+            <button class="filter-btn" onclick="filtrarFlujo('venta',this)">Ventas</button>
+            <button class="filter-btn" onclick="filtrarFlujo('apertura',this)">Apertura</button>
+            <button class="filter-btn" onclick="filtrarFlujo('ingreso',this)">Ingresos</button>
+            <button class="filter-btn" onclick="filtrarFlujo('egreso',this)">Egresos</button>
+            <button class="filter-btn" onclick="filtrarFlujo('anulacion',this)">Anulaciones</button>
+            <button class="filter-btn" onclick="filtrarFlujo('cierre',this)">Cierre</button>
+          </div>
+        </div>
+
+        <!-- TABLA con scroll -->
+        <div style="max-height:380px;overflow-y:auto;padding:0 0 1rem">
+          <div class="t-head" style="grid-template-columns:65px 90px 1fr 90px 100px 110px;position:sticky;top:0;z-index:5">
+            <div class="th">Hora</div>
+            <div class="th">Tipo</div>
+            <div class="th">Detalle</div>
+            <div class="th">Método</div>
+            <div class="th">Monto</div>
+            <div class="th">Saldo</div>
           </div>
           <div class="t-body" id="flujoTableBody"></div>
         </div>
-        <div class="modal-footer" style="justify-content: space-between;">
-           <div style="font-size:12px; color:var(--muted)">Todo el historial de la jornada</div>
-           <button class="btn" onclick="exportFlujo()">Descargar CSV</button>
+
+        <!-- FOOTER -->
+        <div class="modal-footer" style="justify-content:space-between;border-top:1px solid var(--border);padding:1rem 2rem">
+          <div style="font-size:11px;color:var(--muted)">Todo el historial de la jornada</div>
+          <div style="display:flex;gap:.6rem">
+            <button class="btn-out" onclick="imprimirFlujo()">Imprimir</button>
+            <button class="btn" onclick="exportFlujo()">Descargar CSV</button>
+          </div>
         </div>
       </div>
     </div>
@@ -1036,37 +1098,134 @@ function armarFlujoOrdenado() {
   return flujo.sort((a,b) => a.hora - b.hora);
 }
 
-function verFlujoDia() {
-  const flujo = armarFlujoOrdenado();
-  
-  document.getElementById('flujoTableBody').innerHTML = flujo.map(f => {
-    if (f.tipo === 'venta' && f.estado === 'cancelada') return ''; // Ocultamos la venta si se canceló
-    
-    // Colores según el tipo (verde para ingresos, rojo para egresos)
-    let color = (f.tipo==='venta'||f.tipo==='ingreso'||f.tipo==='apertura') ? '#4CAF50' : 
-                (f.tipo==='egreso'||f.tipo==='cierre'?'var(--red)':
-                (f.tipo==='anulacion'?'var(--orange)':'var(--muted)'));
-                
-    let signo = (f.tipo==='egreso'||f.tipo==='cierre') ? '-' : (f.tipo==='anulacion' ? '❌ ' : '');
-    
-    return `<div class="t-row" style="grid-template-columns: 70px 100px 1fr 100px 100px;">
-       <div class="td muted" style="font-size:11px">${new Date(f.hora).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div>
-       <div class="td" style="text-transform:uppercase;font-size:9px;color:var(--amber)">${f.tipo}</div>
-       <div class="td">${f.desc}</div>
-       <div class="td muted">${f.metodo}</div>
-       <div class="td" style="color:${color};font-weight:bold">${signo}${fmt(f.monto)}</div>
+let flujoFiltroActivo = 'todos';
+let flujoCompleto = []; // guarda el flujo completo para filtrar sin recargar
+
+function renderFlujoTabla(filtro = 'todos') {
+  const cols = 'grid-template-columns:65px 90px 1fr 90px 100px 110px';
+
+  // Calculamos saldo acumulado sobre el flujo COMPLETO (no el filtrado)
+  let saldo = 0;
+  const flujoConSaldo = flujoCompleto.map(f => {
+    if (f.tipo === 'venta' && f.estado === 'cancelada') return null;
+    const esIngreso = ['venta','ingreso','apertura'].includes(f.tipo);
+    const esEgreso  = ['egreso','cierre'].includes(f.tipo);
+    const esAnulacion = f.tipo === 'anulacion';
+    if (esIngreso)   saldo += f.monto;
+    if (esEgreso)    saldo -= f.monto;
+    if (esAnulacion) saldo -= f.monto;
+    return { ...f, saldoAcum: saldo };
+  }).filter(Boolean);
+
+  // Actualizamos el resumen sticky
+  const apertura = flujoCompleto.filter(f=>f.tipo==='apertura').reduce((a,f)=>a+f.monto,0);
+  const ventas   = flujoCompleto.filter(f=>f.tipo==='venta' && f.estado!=='cancelada').reduce((a,f)=>a+f.monto,0);
+  const egresos  = flujoCompleto.filter(f=>f.tipo==='egreso').reduce((a,f)=>a+f.monto,0);
+  document.getElementById('fr-apertura').textContent = fmt(apertura);
+  document.getElementById('fr-ventas').textContent   = fmt(ventas);
+  document.getElementById('fr-egresos').textContent  = fmt(egresos);
+  document.getElementById('fr-saldo').textContent    = fmt(saldo);
+
+  // Filtramos para la tabla
+  const lista = filtro === 'todos' ? flujoConSaldo : flujoConSaldo.filter(f => f.tipo === filtro);
+
+  if (!lista.length) {
+    document.getElementById('flujoTableBody').innerHTML =
+      '<div style="padding:2rem;text-align:center;color:var(--muted)">Sin movimientos en esta categoría</div>';
+    return;
+  }
+
+  document.getElementById('flujoTableBody').innerHTML = lista.map(f => {
+    const esIngreso   = ['venta','ingreso','apertura'].includes(f.tipo);
+    const esEgreso    = ['egreso','cierre'].includes(f.tipo);
+    const esAnulacion = f.tipo === 'anulacion';
+
+    const colorMonto = esIngreso ? '#4CAF50' : esEgreso ? 'var(--red)' : esAnulacion ? 'var(--orange)' : 'var(--muted)';
+    const signo      = esEgreso ? '-' : esAnulacion ? '-' : '';
+    const colorSaldo = f.saldoAcum >= 0 ? 'var(--gold)' : 'var(--red)';
+
+    const tipoBadge = {
+      venta:'#4CAF50', ingreso:'#4CAF50', apertura:'var(--amber)',
+      egreso:'var(--red)', cierre:'var(--red)', anulacion:'var(--orange)'
+    }[f.tipo] || 'var(--muted)';
+
+    return `<div class="t-row" style="${cols}">
+      <div class="td muted" style="font-size:11px">${new Date(f.hora).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div>
+      <div class="td"><span style="font-size:8px;letter-spacing:.15em;text-transform:uppercase;color:${tipoBadge};background:${tipoBadge}18;padding:2px 6px;border-radius:2px">${f.tipo}</span></div>
+      <div class="td" style="white-space:normal;word-break:break-word;font-size:12px">${f.desc}</div>
+      <div class="td muted" style="font-size:11px">${f.metodo}</div>
+      <div class="td" style="color:${colorMonto};font-weight:600">${signo}${fmt(f.monto)}</div>
+      <div class="td" style="color:${colorSaldo};font-weight:600;font-family:'Playfair Display',serif">${fmt(f.saldoAcum)}</div>
     </div>`;
-  }).join('') || '<div style="padding:2rem;text-align:center;color:var(--muted)">Sin movimientos hoy</div>';
-  
+  }).join('');
+}
+
+function filtrarFlujo(tipo, btn) {
+  flujoFiltroActivo = tipo;
+  document.querySelectorAll('#flujoModal .filter-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderFlujoTabla(tipo);
+}
+
+async function verFlujoDia() {
+  await cargarDatosDelDia();
+  flujoCompleto = armarFlujoOrdenado();
+  flujoFiltroActivo = 'todos';
   openModal('flujoModal');
+  // Reset filtros
+  document.querySelectorAll('#flujoModal .filter-btn').forEach((b,i) => b.classList.toggle('active', i===0));
+  renderFlujoTabla('todos');
+}
+
+function imprimirFlujo() {
+  const flujo = flujoFiltroActivo === 'todos' ? flujoCompleto : flujoCompleto.filter(f => f.tipo === flujoFiltroActivo);
+  if (!flujo.length) { showToast('No hay datos para imprimir'); return; }
+  const fecha = new Date().toLocaleDateString('es-AR');
+  const rows = flujo.map(f => {
+    const esE = ['egreso','cierre'].includes(f.tipo) || f.tipo==='anulacion';
+    return `<tr>
+      <td>${new Date(f.hora).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</td>
+      <td style="text-transform:uppercase;font-size:11px">${f.tipo}</td>
+      <td>${f.desc}</td>
+      <td>${f.metodo}</td>
+      <td style="text-align:right;color:${esE?'#c00':'#080'}">${esE?'-':''}$${f.monto.toLocaleString('es-AR')}</td>
+    </tr>`;
+  }).join('');
+  const w = window.open('', '_blank');
+  w.document.write(`<html><head><title>Flujo Caja ${fecha}</title>
+    <style>body{font-family:Arial,sans-serif;padding:2rem}h2{margin-bottom:.5rem}
+    table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:.4rem .6rem;font-size:12px}
+    th{background:#f5f5f5;text-align:left}</style></head><body>
+    <h2>Lembe Bebidas — Flujo de Caja</h2><p style="color:#666;font-size:12px">${fecha}</p>
+    <table><thead><tr><th>Hora</th><th>Tipo</th><th>Detalle</th><th>Método</th><th>Monto</th></tr></thead>
+    <tbody>${rows}</tbody></table></body></html>`);
+  w.document.close();
+  w.print();
 }
 
 function exportFlujo() {
-  const flujo = armarFlujoOrdenado();
-  if(!flujo.length) { showToast('No hay datos para exportar'); return; }
-  const rows = [['Hora', 'Tipo de Movimiento', 'Descripcion', 'Metodo Pago', 'Monto ($)']];
-  flujo.forEach(f => rows.push([new Date(f.hora).toLocaleTimeString(), f.tipo, f.desc, f.metodo, f.monto]));
+  const flujo = flujoCompleto.length ? flujoCompleto : armarFlujoOrdenado();
+  if (!flujo.length) { showToast('No hay datos para exportar'); return; }
+
+  const rows = [['Hora', 'Tipo', 'Detalle', 'Metodo Pago', 'Monto ($)', 'Saldo Acumulado ($)']];
+  let saldo = 0;
+  flujo.forEach(f => {
+    if (f.tipo === 'venta' && f.estado === 'cancelada') return;
+    const esIngreso   = ['venta','ingreso','apertura'].includes(f.tipo);
+    const esEgreso    = ['egreso','cierre','anulacion'].includes(f.tipo);
+    if (esIngreso) saldo += f.monto;
+    if (esEgreso)  saldo -= f.monto;
+    rows.push([
+      new Date(f.hora).toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit'}),
+      f.tipo.toUpperCase(),
+      f.desc,
+      f.metodo,
+      esEgreso ? -f.monto : f.monto,
+      saldo
+    ]);
+  });
   downloadCSV(rows, `lembe_flujo_${new Date().toISOString().slice(0,10)}.csv`);
+  showToast('CSV exportado correctamente');
 }
 
 function calcularEfectivoEsperado() {
