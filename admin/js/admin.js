@@ -769,7 +769,8 @@ async function renderCaja() {
     </div>
 
     <div class="modal-bg" id="flujoModal" onclick="if(event.target===this)closeModal('flujoModal')">
-      <div class="modal" style="max-width:760px;padding:0;overflow:hidden">
+      <!-- ✅ SE SUBIÓ EL ANCHO A 950px -->
+      <div class="modal" style="max-width:950px; width:95%; padding:0; overflow:hidden">
         <button class="close-modal" onclick="closeModal('flujoModal')" style="top:1rem;right:1rem">✕</button>
 
         <!-- HEADER STICKY con resumen + filtros -->
@@ -810,13 +811,14 @@ async function renderCaja() {
 
         <!-- TABLA con scroll -->
         <div style="max-height:380px;overflow-y:auto;padding:0 0 1rem">
-          <div class="t-head" style="grid-template-columns:65px 90px 1fr 90px 100px 110px;position:sticky;top:0;z-index:5">
+          <!-- ✅ COLUMNAS AJUSTADAS PARA DAR ESPACIO AL DETALLE (1fr) -->
+          <div class="t-head" style="grid-template-columns: 85px 110px 1fr 100px 100px 100px; gap: 15px; position:sticky; top:0; z-index:5">
             <div class="th">Hora</div>
             <div class="th">Tipo</div>
             <div class="th">Detalle</div>
             <div class="th">Método</div>
-            <div class="th">Monto</div>
-            <div class="th">Saldo</div>
+            <div class="th" style="text-align:right">Monto</div>
+            <div class="th" style="text-align:right">Saldo</div>
           </div>
           <div class="t-body" id="flujoTableBody"></div>
         </div>
