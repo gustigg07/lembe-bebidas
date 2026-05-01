@@ -1500,38 +1500,42 @@ let histData = [];
 let histFilter = 'todos';
 
 async function renderHistorial() {
-  // 1. Creamos los selectores de fecha en la barra superior
+  // 1. Configuramos la barra superior con los inputs
   document.getElementById('topbarActions').innerHTML = `
     <div style="display:flex; gap:.5rem; align-items:center;">
       <label style="font-size:10px; color:var(--muted)">DESDE:</label>
-      <input type="date" id="histDesde" class="search-box" style="width:135px">
+      <input type="date" id="histDesde" class="search-box" style="width:140px">
       <label style="font-size:10px; color:var(--muted)">HASTA:</label>
-      <input type="date" id="histHasta" class="search-box" style="width:135px">
+      <input type="date" id="histHasta" class="search-box" style="width:140px">
       <button class="btn" onclick="renderHistorial()">Filtrar</button>
       <button class="btn-out" onclick="exportHistorial()">Exportar</button>
     </div>
   `;
   
-  // 2. Traemos todos los datos de la base
+  // 2. Traemos los datos frescos
   const ventasCrudas = await getVentas();
   const movsCrudos = await getMovimientos();
   
-  // 3. Capturamos los valores de los filtros
-  const desde = document.getElementById('histDesde')?.value;
-  const hasta = document.getElementById('histHasta')?.value;
+  // 3. Capturamos fechas y las normalizamos (quitamos las horas para comparar días puros)
+  const desdeVal = document.getElementById('histDesde')?.value; // Viene como "YYYY-MM-DD"
+  const hastaVal = document.getElementById('histHasta')?.value;
 
   histData = [];
 
-  // 4. Función auxiliar para filtrar por fecha
+  // Función de validación mejorada
   const pasaFiltro = (fechaISO) => {
     if (!fechaISO) return true;
-    const fechaReg = fechaISO.split('T')[0]; // Extrae solo YYYY-MM-DD[cite: 1]
-    if (desde && fechaReg < desde) return false;
-    if (hasta && fechaReg > hasta) return false;
+    
+    // Extraemos solo la parte de la fecha "YYYY-MM-DD" del registro
+    const fechaReg = fechaISO.split('T')[0]; 
+
+    if (desdeVal && fechaReg < desdeVal) return false;
+    if (hastaVal && fechaReg > hastaVal) return false;
+    
     return true;
   };
 
-  // Agregamos las Ventas filtradas[cite: 1]
+  // 4. Procesamos Ventas
   (ventasCrudas || []).forEach(v => {
     if (pasaFiltro(v.created_at)) {
       histData.push({
@@ -1542,7 +1546,7 @@ async function renderHistorial() {
     }
   });
 
-  // Agregamos los Movimientos filtrados[cite: 1]
+  // 5. Procesamos Movimientos[cite: 1, 2]
   (movsCrudos || []).forEach(m => {
     if (pasaFiltro(m.created_at)) {
       histData.push({
@@ -1556,9 +1560,8 @@ async function renderHistorial() {
     }
   });
 
-  // Ordenamos del más nuevo al más viejo[cite: 1]
+  // 6. Ordenamos y dibujamos[cite: 1, 2]
   histData.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-
   renderHistContent();
 }
 
