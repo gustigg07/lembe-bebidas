@@ -386,7 +386,7 @@ async function renderStock() {
   renderStockTable();
 }
 
-function getStockStatus(p) { return p.stock === 0 ? 'agotado' : p.stock <= p.stock_minimo ? 'bajo' : 'ok'; }
+function getStockStatus(p) { if (p.categoria === 'Combos') return 'combo'; return p.stock === 0 ? 'agotado' : p.stock <= p.stock_minimo ? 'bajo' : 'ok'; }
 
 function renderStockTable() {
   const q = (document.getElementById('stockSearch')?.value || '').toLowerCase();
@@ -404,12 +404,7 @@ function renderStockTable() {
     return mf && ms && mc; // Todas las condiciones deben cumplirse
   });
 
-  document.getElementById('sm-total').textContent = stockProducts.length;
-  document.getElementById('sm-ok').textContent = stockProducts.filter(p => getStockStatus(p) === 'ok').length;
-  document.getElementById('sm-low').textContent = stockProducts.filter(p => getStockStatus(p) === 'bajo').length;
-  document.getElementById('sm-out').textContent = stockProducts.filter(p => getStockStatus(p) === 'agotado').length;
-
-  const low = stockProducts.filter(p => getStockStatus(p) !== 'ok').length;
+  const low = noCombo.filter(p => getStockStatus(p) !== 'ok').length;
   document.getElementById('stockAlerts').innerHTML = low > 0
     ? `<div class="alert-bar"><div class="alert-text"><strong>${low} producto${low > 1 ? 's' : ''}</strong> con stock bajo o agotado.</div><button class="btn-out" onclick="setStockFilter('bajo',null);setStockFilter('agotado',null)" style="font-size:10px">Ver</button></div>`
     : '';
@@ -417,14 +412,40 @@ function renderStockTable() {
   const body = document.getElementById('stockTableBody');
   if (!list.length) { body.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--muted)">Sin resultados</div>'; return; }
 
+  // Métricas: excluimos combos del conteo de stock
+  const noCombo = stockProducts.filter(p => p.categoria !== 'Combos');
+  document.getElementById('sm-total').textContent = stockProducts.length;
+  document.getElementById('sm-ok').textContent  = noCombo.filter(p => getStockStatus(p) === 'ok').length;
+  document.getElementById('sm-low').textContent  = noCombo.filter(p => getStockStatus(p) === 'bajo').length;
+  document.getElementById('sm-out').textContent  = noCombo.filter(p => getStockStatus(p) === 'agotado').length;
+
   body.innerHTML = list.map(p => {
     const s = getStockStatus(p);
-    const pill = s === 'ok' ? `<span class="stock-pill sp-ok">● Normal (${p.stock})</span>` : s === 'bajo' ? `<span class="stock-pill sp-low">● Bajo (${p.stock})</span>` : `<span class="stock-pill sp-out">● Agotado</span>`;
-    
-    // Mostramos la imagen en chiquito si existe, sino el emoji
+    const esCombo = p.categoria === 'Combos';
+
+    // Pill: combos tienen badge especial, sin número de stock
+    const pill = esCombo
+      ? `<span class="stock-pill" style="background:rgba(139,92,246,.15);color:#a78bfa;border:1px solid rgba(139,92,246,.3)">● Combo virtual</span>`
+      : s === 'ok'  ? `<span class="stock-pill sp-ok">● Normal (${p.stock})</span>`
+      : s === 'bajo' ? `<span class="stock-pill sp-low">● Bajo (${p.stock})</span>`
+      : `<span class="stock-pill sp-out">● Agotado</span>`;
+
+    const stockMinCol = esCombo
+      ? `<span style="font-size:10px;color:var(--muted);font-style:italic">—</span>`
+      : `${p.stock_minimo} u.`;
+
     const prodIcon = p.imagen_url 
       ? `<img src="${p.imagen_url}" style="width:24px;height:24px;object-fit:cover;border-radius:4px;margin-right:8px;vertical-align:middle;">` 
       : `<span style="margin-right:8px;">${p.emoji || '🍷'}</span>`;
+
+    // Botones: combos solo pueden editarse y eliminarse, sin +/-
+    const actionBtns = esCombo
+      ? `<button class="act-btn" onclick="editStockProduct(${p.id})" title="Editar receta">✏</button>
+         <button class="act-btn del" onclick="delStockProduct(${p.id})" title="Eliminar">🗑</button>`
+      : `<button class="act-btn" onclick="editStockProduct(${p.id})" title="Editar">✏</button>
+         <button class="act-btn" onclick="adjStock(${p.id},1)" title="+1">+</button>
+         <button class="act-btn" onclick="adjStock(${p.id},-1)" title="-1">−</button>
+         <button class="act-btn del" onclick="delStockProduct(${p.id})" title="Eliminar">🗑</button>`;
 
     return `<div class="t-row" style="grid-template-columns:2fr 1fr 1fr 1fr 1fr 110px">
       <div class="td" style="display:flex;align-items:center;">
@@ -433,14 +454,9 @@ function renderStockTable() {
       </div>
       <div class="td muted">${p.categoria}</div>
       <div class="td">${pill}</div>
-      <div class="td muted">${p.stock_minimo} u.</div>
+      <div class="td muted">${stockMinCol}</div>
       <div class="td gold">${fmt(p.precio)}</div>
-      <div class="td"><div class="action-btns">
-        <button class="act-btn" onclick="editStockProduct(${p.id})" title="Editar">✏</button>
-        <button class="act-btn" onclick="adjStock(${p.id},1)" title="+1">+</button>
-        <button class="act-btn" onclick="adjStock(${p.id},-1)" title="-1">−</button>
-        <button class="act-btn del" onclick="delStockProduct(${p.id})" title="Eliminar">🗑</button>
-      </div></div>
+      <div class="td"><div class="action-btns">${actionBtns}</div></div>
     </div>`;
   }).join('');
 }
@@ -466,6 +482,9 @@ function toggleComboUI() {
     builder.style.display = 'none';
     recetaActual = []; // Si no es combo, limpiamos la receta
   }
+  // Deshabilitar el input de stock si es combo para no confundir al usuario
+  document.getElementById('sf-stock').disabled = isCombo;
+  if (isCombo) document.getElementById('sf-stock').value = 0;
 }
 
 function agregarIngredienteCombo() {
@@ -535,7 +554,7 @@ async function saveStockProduct() {
   const cat = document.getElementById('sf-cat').value;
   if (!nombre) { alert('Ingresá el nombre'); return; }
 
-  // Validación: Si es combo, al menos debe tener 1 ingrediente
+  // 1. Validación: Si es combo, al menos debe tener 1 ingrediente
   if (cat === 'Combos' && recetaActual.length === 0) {
     alert('Los combos deben tener al menos un ingrediente en la receta.');
     return;
@@ -549,16 +568,21 @@ async function saveStockProduct() {
     if (nuevaUrl) url_final = nuevaUrl;
   }
 
+  // 2. Lógica de Stock Inteligente:
+  // Si es un Combo, forzamos el stock a 0 porque es un producto "virtual".
+  // Si es un producto normal, tomamos el valor del input.
+  const valorStock = cat === 'Combos' ? 0 : (parseInt(document.getElementById('sf-stock').value) || 0);
+
   const prod = {
     nombre, 
     categoria: cat,
     precio: parseFloat(document.getElementById('sf-precio').value) || 0,
-    stock: parseInt(document.getElementById('sf-stock').value) || 0,
+    stock: valorStock, // <--- CAMBIO AQUÍ
     stock_minimo: parseInt(document.getElementById('sf-min').value) || 5,
     origen: document.getElementById('sf-origen').value.trim(),
     emoji: document.getElementById('sf-emoji').value.trim() || '🍷',
     imagen_url: url_final,
-    receta: cat === 'Combos' ? recetaActual : [] // ✅ GUARDAMOS LA RECETA EN SUPABASE
+    receta: cat === 'Combos' ? recetaActual : [] 
   };
 
   if (editingStockId) prod.id = editingStockId;
@@ -577,6 +601,7 @@ function editStockProduct(id) { openStockModal(stockProducts.find(x => x.id === 
 async function adjStock(id, delta) {
   const p = stockProducts.find(x => x.id === id);
   if (!p) return;
+  if (p.categoria === 'Combos') { showToast('Los combos no tienen stock propio'); return; }
   p.stock = Math.max(0, p.stock + delta);
   await upsertProducto({ ...p });
   renderStockTable();
@@ -590,7 +615,7 @@ async function delStockProduct(id) {
 }
 function exportStock() {
   const rows = [['Nombre', 'Categoría', 'Stock', 'Mínimo', 'Precio', 'Estado']];
-  stockProducts.forEach(p => rows.push([p.nombre, p.categoria, p.stock, p.stock_minimo, p.precio, getStockStatus(p)]));
+  stockProducts.forEach(p => rows.push([p.nombre, p.categoria, p.categoria==='Combos'?'Virtual':p.stock, p.categoria==='Combos'?'—':p.stock_minimo, p.precio, p.categoria==='Combos'?'combo virtual':getStockStatus(p)]));
   downloadCSV(rows, 'lembe_stock.csv');
 }
 async function uploadProductImage(file) {
