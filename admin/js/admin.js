@@ -731,7 +731,7 @@ async function renderCaja() {
           
           <div style="margin-bottom:.8rem">
             <div style="font-size:9px;letter-spacing:.3em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem">Descuento <span id="descTotalLabel" style="color:var(--orange)"></span></div>
-            <div class="pm-btns desc-btns">
+            <div class="pm-btns" style="grid-template-columns:repeat(6,1fr)">
               <button class="pm-btn desc-btn" id="desc-5"  onclick="toggleDesc(5)">5%</button>
               <button class="pm-btn desc-btn" id="desc-10" onclick="toggleDesc(10)">10%</button>
               <button class="pm-btn desc-btn" id="desc-15" onclick="toggleDesc(15)">15%</button>
