@@ -1541,45 +1541,40 @@ let histData = [];
 
 // ✅ FUNCIÓN NUEVA: renderHistChart (estaba faltando)
 function renderHistChart(ventasValidas) {
-  if (!ventasValidas || ventasValidas.length === 0) {
-    document.getElementById('histChart').innerHTML = '<div style="padding:1rem;text-align:center;color:var(--muted)">Sin datos para graficar</div>';
-    return;
-  }
-
   const hoy = new Date();
   const labels = [];
   const datos = [];
 
   for (let i = 6; i >= 0; i--) {
-    const fecha = new Date(hoy);
-    fecha.setDate(fecha.getDate() - i);
-    const fechaStr = fecha.toLocaleDateString('es-AR', { month: 'short', day: 'numeric' });
-    labels.push(fechaStr);
-
-    const ventasDelDia = ventasValidas.filter(v => {
-      const vFecha = new Date(v.created_at);
-      return vFecha.toDateString() === fecha.toDateString();
-    }).reduce((sum, v) => sum + v.total, 0);
-
-    datos.push(ventasDelDia);
+    const d = new Date(hoy);
+    d.setDate(d.getDate() - i);
+    labels.push(d.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' }));
+    
+    const totalDia = ventasValidas
+      .filter(v => new Date(v.created_at).toDateString() === d.toDateString())
+      .reduce((s, v) => s + v.total, 0);
+    datos.push(totalDia);
   }
 
-  const maxValor = Math.max(...datos, 1);
-  const escala = 200 / maxValor;
+  const max = Math.max(...datos, 1);
+  // Bajamos la escala a 55 para que con val+label (aprox 40px) no pase los 110px del padre
+  const escala = 55 / max; 
 
-  const html = `
-    <div style="display:flex;align-items:flex-end;justify-content:space-around;height:180px;gap:8px">
-      ${datos.map((d, i) => `
-        <div style="display:flex;flex-direction:column;align-items:center;flex:1">
-          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">${fmt(d)}</div>
-          <div style="background:var(--gold);width:100%;height:${Math.max(d * escala, 4)}px;border-radius:2px;cursor:help" title="${labels[i]}"></div>
-          <div style="font-size:9px;color:var(--muted);margin-top:4px">${labels[i]}</div>
-        </div>
-      `).join('')}
-    </div>
-  `;
+  const html = datos.map((v, i) => {
+    // Formato inteligente: si es más de 1000 muestra 'k', si no, el número simple
+    const displayVal = v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v;
+    
+    return `
+      <div class="bar-col">
+        <div class="bar-val">${v > 0 ? '$' + displayVal : ''}</div>
+        <div class="bar" style="height: ${Math.max(v * escala, 4)}px" title="${fmt(v)}"></div>
+        <div class="bar-label">${labels[i]}</div>
+      </div>
+    `;
+  }).join('');
 
-  document.getElementById('histChart').innerHTML = html;
+  const chartEl = document.getElementById('histChart');
+  if (chartEl) chartEl.innerHTML = html;
 }
 
 async function renderHistorial() {
