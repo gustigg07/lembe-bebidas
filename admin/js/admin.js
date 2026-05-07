@@ -731,7 +731,7 @@ async function renderCaja() {
           
           <div style="margin-bottom:.8rem">
             <div style="font-size:9px;letter-spacing:.3em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem">Descuento <span id="descTotalLabel" style="color:var(--orange)"></span></div>
-            <div class="pm-btns">
+            <div class="pm-btns desc-btns">
               <button class="pm-btn desc-btn" id="desc-5"  onclick="toggleDesc(5)">5%</button>
               <button class="pm-btn desc-btn" id="desc-10" onclick="toggleDesc(10)">10%</button>
               <button class="pm-btn desc-btn" id="desc-15" onclick="toggleDesc(15)">15%</button>
@@ -858,7 +858,6 @@ async function renderCaja() {
       </div>
     </div>`;
 
-  acomodarPanelCaja();
   cajaPOS = [];
   posCategoriaActiva = 'todos';
   renderPosTiles();
@@ -875,7 +874,6 @@ function acomodarPanelCaja() {
       <div class="pos-right-title">Venta actual</div>
       <div id="posItemCount" style="font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)">0 items</div>
     </div>
-    <div class="cart-list checkout-cart" id="posCart"><div class="cart-empty-msg">Agrega productos</div></div>
     <div class="checkout-panel">
       <div class="pos-totals">
         <div class="pos-total-row"><span>Subtotal</span><span id="posSub">$0</span></div>
@@ -901,6 +899,7 @@ function acomodarPanelCaja() {
       </div>
       <button class="cobrar-btn" id="posCobraBtn" onclick="cobrar()" disabled>Cobrar</button>
     </div>
+    <div class="cart-list checkout-cart" id="posCart"><div class="cart-empty-msg">Agrega productos</div></div>
   `;
 }
 
