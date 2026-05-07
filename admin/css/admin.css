@@ -1583,32 +1583,64 @@ body {
 }
 
 .page-caja .pos-right {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   min-height: 0;
   overflow: hidden;
 }
 
 .page-caja .cart-list {
-  flex: 1 1 auto;
-  min-height: 90px;
+  min-height: 0;
   overflow-y: auto;
 }
 
 .page-caja .pos-right-header,
 .page-caja .pos-footer {
-  flex: 0 0 auto;
+  min-height: 0;
 }
 
 .page-caja .pos-footer {
-  padding: 1rem 1.2rem;
+  padding: .8rem 1rem 1rem;
 }
 
 .page-caja .pm-btns {
-  gap: .35rem;
-  margin-bottom: .7rem;
+  gap: .3rem;
+  margin-bottom: .6rem;
+}
+
+.page-caja .pos-footer > div:nth-child(2) {
+  margin-bottom: .55rem !important;
+}
+
+.page-caja .pos-footer > div:nth-child(2) .pm-btns {
+  grid-template-columns: repeat(6, 1fr);
+}
+
+.page-caja .pm-btn {
+  padding: .42rem .35rem;
+  font-size: 9px;
+  letter-spacing: .07em;
+}
+
+.page-caja .pos-totals {
+  margin-bottom: .65rem;
+}
+
+.page-caja .pos-total-row {
+  padding: .2rem 0;
+}
+
+.page-caja .pos-total-row.main {
+  margin-top: .25rem;
+  padding-top: .45rem;
+}
+
+.page-caja .pos-total-row.main span:last-child {
+  font-size: 1.3rem;
 }
 
 .page-caja .cobrar-btn {
-  padding: .8rem;
+  padding: .75rem;
 }
 
 .page-catalogo #catalogoGrid {
