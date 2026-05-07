@@ -337,18 +337,31 @@ async function renderStock() {
       <div class="t-body" id="stockTableBody"></div>
     </div>
     <div class="modal-bg" id="stockModal" onclick="if(event.target===this)closeModal('stockModal')">
-      <!-- ... (El resto del modal se mantiene igual, no lo copio entero para no abrumar, 
-           pero tu modal actual de "Agregar producto" se queda acá adentro) ... -->
       <div class="modal">
         <button class="close-modal" onclick="closeModal('stockModal')">✕</button>
         <div class="modal-title" id="stockModalTitle">Agregar producto</div>
-        <div class="form-row"><label class="form-label">Nombre</label><input class="form-input" id="sf-nombre" placeholder="Ej: Malbec Reserva"></div>
+        <div class="form-row"><label class="form-label">Nombre</label><input class="form-input" id="sf-nombre" placeholder="Ej: Combo Fernet"></div>
         <div class="form-grid">
           <div class="form-row"><label class="form-label">Categoría</label>
-            <select class="form-select" id="sf-cat"><option>Vinos</option><option>Espumantes</option><option>Cervezas</option><option>Espirituosas</option><option>Sin alcohol</option><option>Combos</option><option>Aceite de oliva</option><option>Copa del día</option><option>Extras</option></select>
+            <select class="form-select" id="sf-cat" onchange="toggleComboUI()">
+              <option>Vinos</option><option>Espumantes</option><option>Cervezas</option>
+              <option>Espirituosas</option><option>Sin alcohol</option><option value="Combos">Combos</option>
+              <option>Aceite de oliva</option><option>Copa del día</option><option>Extras</option>
+            </select>
           </div>
           <div class="form-row"><label class="form-label">Precio ($)</label><input class="form-input" type="number" id="sf-precio"></div>
         </div>
+
+        <div id="comboBuilder" style="display:none; background:var(--dark3); border:1px solid rgba(184, 147, 58, 0.5); padding:1rem; margin-bottom:1rem; border-radius:4px;">
+          <div style="font-size:10px; color:var(--gold); text-transform:uppercase; letter-spacing:.2em; margin-bottom:.5rem;">Receta del Combo (Se descontará del stock)</div>
+          <div style="display:flex; gap:.5rem; margin-bottom:.8rem;">
+            <select class="form-select" id="cb-producto" style="flex:1;"></select>
+            <input class="form-input" type="number" id="cb-qty" value="1" min="1" style="width:60px;" title="Cantidad">
+            <button class="btn" onclick="agregarIngredienteCombo()">+</button>
+          </div>
+          <div id="cb-lista" style="display:flex; flex-direction:column; gap:.3rem; max-height:100px; overflow-y:auto;"></div>
+        </div>
+
         <div class="form-grid">
           <div class="form-row"><label class="form-label">Stock actual</label><input class="form-input" type="number" id="sf-stock"></div>
           <div class="form-row"><label class="form-label">Stock mínimo</label><input class="form-input" type="number" id="sf-min" value="5"></div>
@@ -357,13 +370,11 @@ async function renderStock() {
           <div class="form-row"><label class="form-label">Origen</label><input class="form-input" id="sf-origen" placeholder="Mendoza, Argentina"></div>
           <div class="form-row"><label class="form-label">Emoji</label><input class="form-input" id="sf-emoji" placeholder="🍷" maxlength="4"></div>
         </div>
-        
         <div class="form-row">
           <label class="form-label">Foto del producto (Opcional)</label>
           <input class="form-input" type="file" id="sf-img" accept="image/*" style="padding: 8px; cursor: pointer;">
           <input type="hidden" id="sf-img-url">
         </div>
-        
         <div class="modal-footer">
           <button class="btn-out" onclick="closeModal('stockModal')">Cancelar</button>
           <button class="btn" onclick="saveStockProduct()">Guardar</button>
@@ -433,7 +444,65 @@ function renderStockTable() {
     </div>`;
   }).join('');
 }
+// ============================
+//  LÓGICA DEL ARMADOR DE COMBOS
+// ============================
+let recetaActual = []; // Memoria temporal para los ingredientes
 
+function toggleComboUI() {
+  const isCombo = document.getElementById('sf-cat').value === 'Combos';
+  const builder = document.getElementById('comboBuilder');
+  
+  if (isCombo) {
+    builder.style.display = 'block';
+    // Llenamos el desplegable con todos los productos MENOS los que ya son combos
+    const select = document.getElementById('cb-producto');
+    select.innerHTML = stockProducts
+      .filter(p => p.categoria !== 'Combos')
+      .map(p => `<option value="${p.id}">${p.nombre} (${p.stock} disp.)</option>`)
+      .join('');
+    renderRecetaLista();
+  } else {
+    builder.style.display = 'none';
+    recetaActual = []; // Si no es combo, limpiamos la receta
+  }
+}
+
+function agregarIngredienteCombo() {
+  const select = document.getElementById('cb-producto');
+  const id = Number(select.value);
+  const nombre = select.options[select.selectedIndex].text.split('(')[0].trim();
+  const qty = Number(document.getElementById('cb-qty').value);
+
+  if (!id || qty < 1) return;
+
+  // Si ya existe en la lista, le sumamos la cantidad. Si no, lo agregamos.
+  const existe = recetaActual.find(r => r.id === id);
+  if (existe) existe.qty += qty;
+  else recetaActual.push({ id, nombre, qty });
+
+  document.getElementById('cb-qty').value = 1; // Reseteamos el numerito a 1
+  renderRecetaLista();
+}
+
+function quitarIngredienteCombo(id) {
+  recetaActual = recetaActual.filter(r => r.id !== id);
+  renderRecetaLista();
+}
+
+function renderRecetaLista() {
+  const container = document.getElementById('cb-lista');
+  if (!recetaActual.length) {
+    container.innerHTML = '<div style="font-size:10px; color:var(--muted)">Sin ingredientes. Agregá botellas arriba.</div>';
+    return;
+  }
+  container.innerHTML = recetaActual.map(r => `
+    <div style="display:flex; justify-content:space-between; align-items:center; background:var(--dark); padding:.4rem .6rem; border:0.5px solid var(--border); font-size:11px;">
+      <span>🍾 ${r.nombre} <strong style="color:var(--gold)">x${r.qty}</strong></span>
+      <button class="act-btn del" onclick="quitarIngredienteCombo(${r.id})" style="width:20px;height:20px;font-size:9px;">✕</button>
+    </div>
+  `).join('');
+}
 function setStockFilter(f, btn) {
   stockFilter = f;
   document.querySelectorAll('.filters .filter-btn').forEach(b => b.classList.remove('active'));
@@ -442,6 +511,7 @@ function setStockFilter(f, btn) {
 }
 
 let editingStockId = null;
+
 function openStockModal(p = null) {
   editingStockId = p ? p.id : null;
   document.getElementById('stockModalTitle').textContent = p ? 'Editar producto' : 'Agregar producto';
@@ -452,42 +522,43 @@ function openStockModal(p = null) {
   document.getElementById('sf-min').value = p?.stock_minimo ?? 5;
   document.getElementById('sf-origen').value = p?.origen || '';
   document.getElementById('sf-emoji').value = p?.emoji || '';
+  
+  // ✅ Cargamos la receta de Supabase si existe (o creamos una vacía)
+  recetaActual = (p && Array.isArray(p.receta)) ? [...p.receta] : [];
+  toggleComboUI(); // Muestra u oculta la caja amarilla según la categoría
+  
   openModal('stockModal');
 }
-function editStockProduct(id) { openStockModal(stockProducts.find(x => x.id === id)); }
-async function adjStock(id, delta) {
-  const p = stockProducts.find(x => x.id === id);
-  if (!p) return;
-  p.stock = Math.max(0, p.stock + delta);
-  await upsertProducto({ ...p });
-  renderStockTable();
-}
+
 async function saveStockProduct() {
   const nombre = document.getElementById('sf-nombre').value.trim();
+  const cat = document.getElementById('sf-cat').value;
   if (!nombre) { alert('Ingresá el nombre'); return; }
 
-  // 1. Preparamos la variable para la URL de la imagen (por defecto vacía)
+  // Validación: Si es combo, al menos debe tener 1 ingrediente
+  if (cat === 'Combos' && recetaActual.length === 0) {
+    alert('Los combos deben tener al menos un ingrediente en la receta.');
+    return;
+  }
+
   let url_final = document.getElementById('sf-img-url') ? document.getElementById('sf-img-url').value : null;
   const fileInput = document.getElementById('sf-img');
 
-  // 2. Si el usuario seleccionó una foto en el cuadrito, la subimos a Supabase
   if (fileInput && fileInput.files && fileInput.files[0]) {
     const nuevaUrl = await uploadProductImage(fileInput.files[0]);
-    if (nuevaUrl) {
-      url_final = nuevaUrl; // Guardamos el link que nos devuelve Supabase
-    }
+    if (nuevaUrl) url_final = nuevaUrl;
   }
 
-  // 3. Armamos el objeto con todos tus campos
   const prod = {
     nombre, 
-    categoria: document.getElementById('sf-cat').value,
+    categoria: cat,
     precio: parseFloat(document.getElementById('sf-precio').value) || 0,
     stock: parseInt(document.getElementById('sf-stock').value) || 0,
     stock_minimo: parseInt(document.getElementById('sf-min').value) || 5,
     origen: document.getElementById('sf-origen').value.trim(),
     emoji: document.getElementById('sf-emoji').value.trim() || '🍷',
-    imagen_url: url_final // <--- Ahora sí sabe qué guardar
+    imagen_url: url_final,
+    receta: cat === 'Combos' ? recetaActual : [] // ✅ GUARDAMOS LA RECETA EN SUPABASE
   };
 
   if (editingStockId) prod.id = editingStockId;
@@ -501,6 +572,14 @@ async function saveStockProduct() {
   } else { 
     showToast('Error: ' + res.msg); 
   }
+}
+function editStockProduct(id) { openStockModal(stockProducts.find(x => x.id === id)); }
+async function adjStock(id, delta) {
+  const p = stockProducts.find(x => x.id === id);
+  if (!p) return;
+  p.stock = Math.max(0, p.stock + delta);
+  await upsertProducto({ ...p });
+  renderStockTable();
 }
 async function delStockProduct(id) {
   if (!confirm('¿Eliminar este producto?')) return;
@@ -940,6 +1019,7 @@ function selectPM(pm) {
 // ---- COBRO Y ANULACIÓN DE VENTAS ----
 async function cobrar() {
   if (!cajaPOS.length) return;
+  
   const subtotal = cajaPOS.reduce((a,c)=>a+(Number(c.precio)*Number(c.qty)),0);
   const descPct = [...cajaDescuentos].reduce((a,v)=>a+v,0);
   const descMonto = Math.round(subtotal*descPct/100);
@@ -953,20 +1033,39 @@ async function cobrar() {
 
   const res = await insertVenta(venta);
   if (res.ok) {
+    // 🔥 LÓGICA DE STOCK PARA COMBOS
     for (const item of cajaPOS) {
-      const prodOriginal = cajaProducts.find(p=>p.id===item.id);
-      if (prodOriginal) await upsertProducto({...prodOriginal, stock: Math.max(0,Number(prodOriginal.stock)-Number(item.qty))});
+      const prodOriginal = cajaProducts.find(p => p.id === item.id);
+      
+      if (prodOriginal) {
+        // ¿Es un combo con receta?
+        if (prodOriginal.categoria === 'Combos' && Array.isArray(prodOriginal.receta) && prodOriginal.receta.length > 0) {
+          for (const ingrediente of prodOriginal.receta) {
+            const prodFisico = cajaProducts.find(p => p.id === ingrediente.id);
+            if (prodFisico) {
+              const cantADescontar = Number(ingrediente.qty) * Number(item.qty);
+              await upsertProducto({ 
+                ...prodFisico, 
+                stock: Math.max(0, Number(prodFisico.stock) - cantADescontar) 
+              });
+            }
+          }
+          // También descontamos 1 unidad del "Combo" en sí
+          await upsertProducto({...prodOriginal, stock: Math.max(0, Number(prodOriginal.stock) - Number(item.qty))});
+        } else {
+          // Venta normal
+          await upsertProducto({...prodOriginal, stock: Math.max(0, Number(prodOriginal.stock) - Number(item.qty))});
+        }
+      }
     }
-    
+
     await cargarDatosDelDia();
-    
     showTicket({items:cajaPOS, subtotal, descPct, descMonto, total, metodo:cajaPayMethod});
-    resetDescuentos();
-    renderCajaMetrics();
-    renderCajaHist();
-    renderPosTiles();
-    showToast("Venta registrada correctamente");
-  } else { alert("Error: " + res.msg); }
+    cajaPOS = []; resetDescuentos(); renderPosCart(); renderCajaMetrics(); renderCajaHist();
+    showToast("Venta realizada y stock actualizado");
+  } else { 
+    alert("Error: " + res.msg); 
+  }
 }
 
 async function anularVenta(id) {
