@@ -1548,3 +1548,86 @@ body {
   align-content: start;
   padding-right: 4px;
 }
+
+/* Correccion: layout fijo sin aplastar Caja ni Catalogo */
+.page-caja,
+.page-catalogo {
+  display: block;
+  overflow: hidden;
+}
+
+.page-caja .pos-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 420px;
+  gap: 0;
+  height: calc(100vh - 260px);
+  min-height: 0;
+  max-height: calc(100vh - 260px);
+  margin: 0 -2rem !important;
+  border-top: 0.5px solid var(--border);
+  overflow: hidden;
+}
+
+.page-caja .pos-left {
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 1.5rem;
+}
+
+.page-caja #posTiles {
+  flex: none;
+  min-height: auto;
+  overflow: visible;
+  align-content: normal;
+  padding-right: 0;
+}
+
+.page-caja .pos-right {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.page-caja .cart-list {
+  flex: 1 1 auto;
+  min-height: 90px;
+  overflow-y: auto;
+}
+
+.page-caja .pos-right-header,
+.page-caja .pos-footer {
+  flex: 0 0 auto;
+}
+
+.page-caja .pos-footer {
+  padding: 1rem 1.2rem;
+}
+
+.page-caja .pm-btns {
+  gap: .35rem;
+  margin-bottom: .7rem;
+}
+
+.page-caja .cobrar-btn {
+  padding: .8rem;
+}
+
+.page-catalogo #catalogoGrid {
+  flex: none;
+  min-height: auto;
+  max-height: calc(100vh - 230px);
+  overflow-y: auto;
+  align-content: start;
+  padding-right: 4px;
+}
+
+.page-caja .pos-left::-webkit-scrollbar,
+.page-caja .cart-list::-webkit-scrollbar,
+.page-catalogo #catalogoGrid::-webkit-scrollbar {
+  width: 3px;
+}
+
+.page-caja .pos-left::-webkit-scrollbar-thumb,
+.page-caja .cart-list::-webkit-scrollbar-thumb,
+.page-catalogo #catalogoGrid::-webkit-scrollbar-thumb {
+  background: var(--border);
+}
