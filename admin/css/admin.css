@@ -1705,8 +1705,7 @@ body {
   }
 }
 /* Botones más grandes en panel de cobro */
-.checkout-panel .pm-btn,
-.pos-footer .pm-btn {
+.checkout-panel .pm-btn {
   padding: .7rem .3rem;
   font-size: 11px;
 }
