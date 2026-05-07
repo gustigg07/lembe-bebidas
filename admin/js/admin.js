@@ -1128,12 +1128,40 @@ let flujoFiltroActivo = 'todos';
 let flujoCompleto = [];
 
 async function verFlujoDia() {
-  await cargarDatosDelDia();
-  flujoCompleto = armarFlujoOrdenado();
-  flujoFiltroActivo = 'todos';
+  await cargarDatosDelDia(); 
+  const flujo = armarFlujoOrdenado();
+  
+  const modalFlujo = document.querySelector('#flujoModal .modal');
+  if (modalFlujo) {
+    modalFlujo.style.maxWidth = '950px'; 
+    modalFlujo.style.width = '95%';
+  }
+  
+  document.getElementById('flujoTableBody').innerHTML = flujo.map(f => {
+    // Detectamos si el registro (venta o movimiento) está cancelado
+    const isCancel = f.estado === 'cancelada';
+    
+    let color = (f.tipo==='venta'||f.tipo==='ingreso'||f.tipo==='apertura') ? '#4CAF50' : 'var(--red)';
+    let signo = (f.tipo==='egreso'||f.tipo==='cierre') ? '-' : (f.tipo==='anulacion' ? '❌ ' : '');
+    
+    const rowStyle = isCancel ? 'opacity: 0.4; filter: grayscale(1);' : '';
+    const montoDisplay = isCancel ? `<del>${fmt(f.monto)}</del>` : `${signo}${fmt(f.monto)}`;
+
+    return `
+    <div class="t-row" style="display:grid; grid-template-columns: 85px 110px 1fr 100px 100px 45px; gap: 15px; align-items: center; border-bottom: 0.5px solid var(--border); padding: 12px 0; ${rowStyle}">
+       <div class="td muted" style="font-size:11px">${new Date(f.hora).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div>
+       <div class="td" style="text-transform:uppercase; font-size:9px; font-weight:bold; color:var(--amber)">${f.tipo}</div>
+       <div class="td" style="text-align:left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${f.desc}</div>
+       <div class="td muted">${f.metodo}</div>
+       <div class="td" style="color:${isCancel ? 'var(--muted)' : color}; font-weight:bold; text-align:right;">${montoDisplay}</div>
+       
+       <div class="td" style="text-align:right;">
+         ${!isCancel ? `<button class="act-btn del" onclick="${f.tipo === 'venta' ? `anularVenta(${f.id})` : `anularMovimiento(${f.id})`}" style="font-size:10px; padding:2px 6px;">✕</button>` : ''}
+       </div>
+    </div>`;
+  }).join('') || '<div style="padding:2rem;text-align:center;color:var(--muted)">Sin movimientos hoy</div>';
+  
   openModal('flujoModal');
-  document.querySelectorAll('#flujoModal .filter-btn').forEach((b,i) => b.classList.toggle('active', i===0));
-  renderFlujoTabla('todos');
 }
 
 function renderFlujoTabla(filtro = 'todos') {
@@ -1250,15 +1278,19 @@ function exportFlujo() {
 
 function calcularEfectivoEsperado() {
   let esperado = 0;
+  
   movimientosCaja.forEach(m => {
-    if (m.metodo_pago === 'efectivo') {
+    // Solo sumamos/restamos si el movimiento NO está cancelado
+    if (m.metodo_pago === 'efectivo' && m.estado !== 'cancelada') {
       if (m.tipo === 'apertura' || m.tipo === 'ingreso') esperado += Number(m.monto);
       if (m.tipo === 'egreso') esperado -= Number(m.monto);
     }
   });
+
   cajaVentas.forEach(v => { 
     if (v.metodo_pago === 'efectivo' && v.estado !== 'cancelada') esperado += Number(v.total); 
   });
+  
   return esperado;
 }
 
@@ -1299,7 +1331,24 @@ async function confirmarCierre() {
   showToast('Caja cerrada. Excelente jornada!');
   await cargarDatosDelDia();
 }
+// ✅ Anulación de movimientos manuales (Egresos, Ingresos, Aperturas)
+async function anularMovimiento(id) {
+  if (!confirm('¿Estás seguro de anular este movimiento? El registro quedará guardado pero no afectará al saldo.')) return;
 
+  // Actualizamos el estado en Supabase a 'cancelada'
+  const { error } = await supabase
+    .from('movimientos_caja')
+    .update({ estado: 'cancelada' })
+    .eq('id', id);
+
+  if (error) {
+    alert('Error al anular: ' + error.message);
+  } else {
+    showToast('Movimiento anulado correctamente');
+    await cargarDatosDelDia(); // Recargamos datos para que el saldo se actualice
+    verFlujoDia();             // Refrescamos la tabla visual
+  }
+}
 // ============================
 //  PEDIDOS
 // ============================
