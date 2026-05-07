@@ -868,12 +868,40 @@ async function renderCaja() {
 
 function acomodarPanelCaja() {
   const posRight = document.querySelector('.page-caja .pos-right');
-  const footer = document.querySelector('.page-caja .pos-footer');
-  const cart = document.querySelector('.page-caja .cart-list');
-  if (!posRight || !footer || !cart) return;
+  if (!posRight) return;
 
-  footer.classList.add('pos-checkout');
-  posRight.insertBefore(footer, cart);
+  posRight.innerHTML = `
+    <div class="pos-right-header">
+      <div class="pos-right-title">Venta actual</div>
+      <div id="posItemCount" style="font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)">0 items</div>
+    </div>
+    <div class="checkout-panel">
+      <div class="pos-totals">
+        <div class="pos-total-row"><span>Subtotal</span><span id="posSub">$0</span></div>
+        <div class="pos-total-row main"><span>Total</span><span id="posTotal">$0</span></div>
+      </div>
+
+      <div class="checkout-block">
+        <div class="checkout-label">Descuento <span id="descTotalLabel"></span></div>
+        <div class="checkout-grid discount-grid">
+          <button class="pm-btn desc-btn" id="desc-5"  onclick="toggleDesc(5)">5%</button>
+          <button class="pm-btn desc-btn" id="desc-10" onclick="toggleDesc(10)">10%</button>
+          <button class="pm-btn desc-btn" id="desc-15" onclick="toggleDesc(15)">15%</button>
+          <button class="pm-btn desc-btn" id="desc-20" onclick="toggleDesc(20)">20%</button>
+          <button class="pm-btn desc-btn" id="desc-25" onclick="toggleDesc(25)">25%</button>
+          <button class="pm-btn desc-btn" id="desc-50" onclick="toggleDesc(50)">50%</button>
+        </div>
+      </div>
+
+      <div class="checkout-grid pay-grid">
+        <button class="pm-btn sel" id="pm-efectivo" onclick="selectPM('efectivo')">Efectivo</button>
+        <button class="pm-btn" id="pm-transferencia" onclick="selectPM('transferencia')">Transfer.</button>
+        <button class="pm-btn" id="pm-qr" onclick="selectPM('qr')">QR</button>
+      </div>
+      <button class="cobrar-btn" id="posCobraBtn" onclick="cobrar()" disabled>Cobrar</button>
+    </div>
+    <div class="cart-list checkout-cart" id="posCart"><div class="cart-empty-msg">Agrega productos</div></div>
+  `;
 }
 
 function setPosCategoria(cat, btn) {
