@@ -1232,6 +1232,11 @@ body {
   margin-bottom: .8rem;
 }
 
+/* 6 botones de descuento en una fila */
+.pm-btns.desc-btns {
+  grid-template-columns: repeat(6, 1fr);
+}
+
 .pm-btn {
   background: var(--dark2);
   border: 0.5px solid var(--border);
@@ -1501,7 +1506,7 @@ body {
   overflow-y: auto !important;
 }
 
-/* 2. COLUMNA DERECHA — header + carrito (scroll) + checkout (fijo abajo) */
+/* 2. COLUMNA DERECHA — header (fijo) + carrito (scroll) + footer (fijo abajo) */
 .page-caja .pos-right {
   display: flex;
   flex-direction: column;
@@ -1511,12 +1516,11 @@ body {
   background: var(--dark);
 }
 
-/* Header fijo arriba */
 .page-caja .pos-right-header {
   flex-shrink: 0;
 }
 
-/* Carrito ocupa el espacio disponible con scroll interno */
+/* Carrito: ocupa todo el espacio libre con scroll interno */
 .page-caja .pos-right > .cart-list {
   flex: 1 1 auto;
   overflow-y: auto;
@@ -1524,7 +1528,7 @@ body {
   max-height: none;
 }
 
-/* Panel de cobro clavado abajo */
+/* Footer/checkout: clavado abajo, nunca se comprime */
 .page-caja .pos-footer,
 .page-caja .checkout-panel {
   flex-shrink: 0;
@@ -1582,14 +1586,16 @@ body {
   margin-bottom: .65rem;
 }
 
-.page-caja .checkout-panel .pm-btn {
+.page-caja .checkout-panel .pm-btn,
+.page-caja .pos-footer .pm-btn {
   display: block;
   padding: .42rem .22rem;
   font-size: 9px;
   letter-spacing: .04em;
 }
 
-.page-caja .checkout-panel .cobrar-btn {
+.page-caja .checkout-panel .cobrar-btn,
+.page-caja .pos-footer .cobrar-btn {
   display: block;
   width: 100%;
   padding: .72rem;
@@ -1673,7 +1679,8 @@ body {
     padding: .8rem 1rem;
   }
 
-  .page-caja .checkout-panel {
+  .page-caja .checkout-panel,
+  .page-caja .pos-footer {
     padding: .65rem .85rem .75rem;
   }
 
@@ -1683,12 +1690,14 @@ body {
     margin-bottom: .45rem;
   }
 
-  .page-caja .checkout-panel .pm-btn {
+  .page-caja .checkout-panel .pm-btn,
+  .page-caja .pos-footer .pm-btn {
     padding: .34rem .15rem;
     font-size: 8px;
   }
 
-  .page-caja .checkout-panel .cobrar-btn {
+  .page-caja .checkout-panel .cobrar-btn,
+  .page-caja .pos-footer .cobrar-btn {
     padding: .62rem;
   }
 
