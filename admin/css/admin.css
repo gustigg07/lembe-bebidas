@@ -1443,7 +1443,20 @@ body {
 
 .page-caja > .metrics {
   flex: 0 0 auto;
-  margin-bottom: 1rem !important;
+  gap: .45rem;
+  margin-bottom: .65rem !important;
+}
+
+.page-caja .metric {
+  padding: .65rem .85rem;
+}
+
+.page-caja .metric-label {
+  margin-bottom: .28rem;
+}
+
+.page-caja .metric-val {
+  font-size: 1.28rem;
 }
 
 .page-caja .pos-layout {
@@ -1489,10 +1502,39 @@ body {
 
 .page-caja .pos-right {
   display: grid !important;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto;
+  align-content: start;
   min-height: 0;
   overflow: hidden !important;
   background: var(--dark);
+}
+
+.page-caja .pos-footer {
+  grid-row: 2;
+  display: block !important;
+  padding: .8rem 1.1rem .95rem;
+  border-top: none;
+  border-bottom: 0.5px solid var(--border);
+  background: var(--dark);
+}
+
+.page-caja .pos-right > .cart-list {
+  grid-row: 3;
+}
+
+.page-caja .pos-footer .pm-btns {
+  gap: .3rem;
+  margin-bottom: .65rem;
+}
+
+.page-caja .pos-footer .pm-btn {
+  padding: .42rem .22rem;
+  font-size: 9px;
+  letter-spacing: .04em;
+}
+
+.page-caja .pos-footer .cobrar-btn {
+  padding: .72rem;
 }
 
 .page-caja .checkout-panel {
@@ -1566,7 +1608,14 @@ body {
 .page-caja .checkout-cart,
 .page-caja .cart-list {
   min-height: 0;
+  max-height: 170px;
   overflow-y: auto !important;
+}
+
+.page-caja .cart-empty-msg {
+  height: auto;
+  min-height: 52px;
+  padding: .8rem;
 }
 
 /* Catalogo: filtros fijos, productos con scroll interno */
