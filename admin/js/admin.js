@@ -875,6 +875,7 @@ function acomodarPanelCaja() {
       <div class="pos-right-title">Venta actual</div>
       <div id="posItemCount" style="font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)">0 items</div>
     </div>
+    <div class="cart-list checkout-cart" id="posCart"><div class="cart-empty-msg">Agrega productos</div></div>
     <div class="checkout-panel">
       <div class="pos-totals">
         <div class="pos-total-row"><span>Subtotal</span><span id="posSub">$0</span></div>
@@ -900,7 +901,6 @@ function acomodarPanelCaja() {
       </div>
       <button class="cobrar-btn" id="posCobraBtn" onclick="cobrar()" disabled>Cobrar</button>
     </div>
-    <div class="cart-list checkout-cart" id="posCart"><div class="cart-empty-msg">Agrega productos</div></div>
   `;
 }
 
