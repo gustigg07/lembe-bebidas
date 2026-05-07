@@ -1435,32 +1435,33 @@ body {
 .content.page-caja {
   display: flex;
   flex-direction: column;
-  height: auto;
+  height: calc(100vh - 75px); /* FIJA LA PANTALLA: resta el alto exacto de la barra superior */
   min-height: 0;
   overflow: hidden !important;
   padding-bottom: 0;
 }
 
+/* 1. ACHICAR MÉTRICAS (Recuadros azules) */
 .page-caja > .metrics {
   flex: 0 0 auto;
   gap: .45rem;
-  margin-bottom: .65rem !important;
+  margin-bottom: .4rem !important; /* Margen inferior reducido */
 }
 
 .page-caja .metric {
-  padding: .65rem .85rem;
+  padding: .4rem .6rem; /* Recuadros más delgados */
 }
 
 .page-caja .metric-label {
-  margin-bottom: .28rem;
+  margin-bottom: .2rem;
 }
 
 .page-caja .metric-val {
-  font-size: 1.28rem;
+  font-size: 1.15rem; /* Fuente más ajustada */
 }
 
 .page-caja .pos-layout {
-  flex: 1 1 auto;
+  flex: 1 1 auto; /* Toma el espacio que ganamos arriba */
   display: grid;
   grid-template-columns: minmax(0, 1fr) 380px;
   gap: 0;
@@ -1500,51 +1501,44 @@ body {
   overflow-y: auto !important;
 }
 
+/* 2. SOLUCIÓN COLUMNA DERECHA (Panel fijo y scroll en carrito) */
 .page-caja .pos-right {
-  display: grid !important;
-  grid-template-rows: auto auto auto;
-  align-content: start;
+  display: flex !important; /* Cambiamos de Grid a Flexbox */
+  flex-direction: column;
+  height: 100%;
   min-height: 0;
   overflow: hidden !important;
   background: var(--dark);
 }
 
-.page-caja .pos-footer {
-  grid-row: 2;
-  display: block !important;
-  padding: .8rem 1.1rem .95rem;
-  border-top: none;
-  border-bottom: 0.5px solid var(--border);
-  background: var(--dark);
+/* Ordenamos los divs visualmente sin tocar el HTML/JS */
+.page-caja .pos-right-header {
+  order: 1; /* Título arriba */
+  flex-shrink: 0;
 }
 
 .page-caja .pos-right > .cart-list {
-  grid-row: 3;
+  order: 2; /* Carrito en el medio */
+  flex: 1 1 auto; /* ABSORBE TODO EL ESPACIO LIBRE (el rectángulo que marcaste) */
+  overflow-y: auto !important; /* Scroll interno solo acá */
+  min-height: 0;
+  max-height: none !important; /* Quita el límite fijo de altura que tenía */
 }
 
-.page-caja .pos-footer .pm-btns {
-  gap: .3rem;
-  margin-bottom: .65rem;
-}
-
-.page-caja .pos-footer .pm-btn {
-  padding: .42rem .22rem;
-  font-size: 9px;
-  letter-spacing: .04em;
-}
-
-.page-caja .pos-footer .cobrar-btn {
-  padding: .72rem;
-}
-
+.page-caja .pos-footer,
 .page-caja .checkout-panel {
+  order: 3; /* Panel de cobro clavado abajo */
+  flex-shrink: 0; /* Inamovible, nunca se comprime */
   display: block !important;
   overflow: visible !important;
   padding: .8rem 1.1rem .95rem;
-  border-bottom: 0.5px solid var(--border);
+  border-top: 1px solid var(--border);
+  border-bottom: none;
   background: var(--dark);
+  margin-top: 0; /* Limpia espacio hueco de arriba */
 }
 
+/* Ajustes internos del panel de cobro */
 .page-caja .pos-totals {
   margin-bottom: .65rem;
 }
@@ -1603,13 +1597,6 @@ body {
   display: block;
   width: 100%;
   padding: .72rem;
-}
-
-.page-caja .checkout-cart,
-.page-caja .cart-list {
-  min-height: 0;
-  max-height: 170px;
-  overflow-y: auto !important;
 }
 
 .page-caja .cart-empty-msg {
