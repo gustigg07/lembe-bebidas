@@ -395,29 +395,28 @@ function renderStockTable() {
   const catFilterSelect = document.getElementById('catFilter');
   const cat = catFilterSelect ? catFilterSelect.value : 'todas';
 
-  let list = stockProducts.filter(p => {
-    const s = getStockStatus(p);
-    const mf = stockFilter === 'todos' || stockFilter === s; // Filtro de estado (OK/Bajo/Agotado)
-    const ms = !q || p.nombre.toLowerCase().includes(q) || p.categoria.toLowerCase().includes(q); // Buscador de texto
-    const mc = cat === 'todas' || p.categoria === cat; // ✅ Filtro de Categoría
-    
-    return mf && ms && mc; // Todas las condiciones deben cumplirse
-  });
+  // Métricas: excluimos combos del conteo de stock (definido primero para evitar ReferenceError)
+  const noCombo = stockProducts.filter(p => p.categoria !== 'Combos');
+  document.getElementById('sm-total').textContent = stockProducts.length;
+  document.getElementById('sm-ok').textContent    = noCombo.filter(p => getStockStatus(p) === 'ok').length;
+  document.getElementById('sm-low').textContent   = noCombo.filter(p => getStockStatus(p) === 'bajo').length;
+  document.getElementById('sm-out').textContent   = noCombo.filter(p => getStockStatus(p) === 'agotado').length;
 
   const low = noCombo.filter(p => getStockStatus(p) !== 'ok').length;
   document.getElementById('stockAlerts').innerHTML = low > 0
     ? `<div class="alert-bar"><div class="alert-text"><strong>${low} producto${low > 1 ? 's' : ''}</strong> con stock bajo o agotado.</div><button class="btn-out" onclick="setStockFilter('bajo',null);setStockFilter('agotado',null)" style="font-size:10px">Ver</button></div>`
     : '';
 
+  let list = stockProducts.filter(p => {
+    const s = getStockStatus(p);
+    const mf = stockFilter === 'todos' || stockFilter === s || s === 'combo';
+    const ms = !q || p.nombre.toLowerCase().includes(q) || p.categoria.toLowerCase().includes(q);
+    const mc = cat === 'todas' || p.categoria === cat;
+    return mf && ms && mc;
+  });
+
   const body = document.getElementById('stockTableBody');
   if (!list.length) { body.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--muted)">Sin resultados</div>'; return; }
-
-  // Métricas: excluimos combos del conteo de stock
-  const noCombo = stockProducts.filter(p => p.categoria !== 'Combos');
-  document.getElementById('sm-total').textContent = stockProducts.length;
-  document.getElementById('sm-ok').textContent  = noCombo.filter(p => getStockStatus(p) === 'ok').length;
-  document.getElementById('sm-low').textContent  = noCombo.filter(p => getStockStatus(p) === 'bajo').length;
-  document.getElementById('sm-out').textContent  = noCombo.filter(p => getStockStatus(p) === 'agotado').length;
 
   body.innerHTML = list.map(p => {
     const s = getStockStatus(p);
