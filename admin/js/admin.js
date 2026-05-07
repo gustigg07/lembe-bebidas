@@ -1,31 +1,24 @@
 // ===========================
-//  LEMBE BEBIDAS — admin.js
+// LEMBE BEBIDAS — admin.js (VERSIÓN CORREGIDA)
 // ===========================
 
-// ❌ BORRAMOS ADMIN_CREDENTIALS: Ya no usamos usuarios en duro, Supabase maneja todo.
 console.log("ADMIN.JS CARGADO CORRECTAMENTE");
 
 let currentPage = 'stock';
 
 // ---- PROTECCIÓN DE STOCK ----
-// El email del dueño se crea en Supabase → Authentication → Users
-// La contraseña NUNCA aparece en el código. Supabase la verifica del lado del servidor.
-const STOCK_OWNER_EMAIL = "stock@lembe.com"; // ← cambiá por el email que pusiste en Supabase
+const STOCK_OWNER_EMAIL = "stock@lembe.com";
 let stockDesbloqueado = false;
 
 // ---- INICIO / VERIFICAR SESIÓN ----
 document.addEventListener('DOMContentLoaded', () => {
   initSupabase();
-
-  // ✅ NUEVO: Verificamos si Supabase ya tiene una sesión guardada
   verificarSesion();
 
-  // Mantenemos el Enter para el login
   document.getElementById('adminPassword').addEventListener('keydown', e => {
     if (e.key === 'Enter') intentarLogin(e);
   });
 
-  // Sidebar nav — stock requiere contraseña del dueño
   document.querySelectorAll('.sb-item[data-page]').forEach(item => {
     item.addEventListener('click', () => {
       if (item.dataset.page === 'stock' && !stockDesbloqueado) {
@@ -37,22 +30,17 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-// ✅ NUEVA FUNCIÓN: Revisa si hay sesión activa al recargar la página
 async function verificarSesion() {
-  if (!supabase) return; // Fallback si no hay conexión
-
+  if (!supabase) return;
   const { data: { session } } = await supabase.auth.getSession();
-
   if (session) {
-    // Si hay sesión, guardamos el correo del usuario y mostramos la app
     currentUser = { nombre: session.user.email };
     showApp();
   }
 }
 
-// ✅ NUEVA FUNCIÓN: Login usando Supabase Auth
 async function intentarLogin(event) {
-  if (event) event.preventDefault(); // Evita recargar la página
+  if (event) event.preventDefault();
 
   const email = document.getElementById('adminEmail').value.trim();
   const password = document.getElementById('adminPassword').value;
@@ -63,20 +51,17 @@ async function intentarLogin(event) {
     return;
   }
 
-  // Llamamos a Supabase para iniciar sesión
   const { data, error } = await supabase.auth.signInWithPassword({
     email: email,
     password: password,
   });
 
   if (error) {
-    // Si falla, mostramos el error
     document.getElementById('loginError').textContent = "Correo o contraseña incorrectos.";
     document.getElementById('loginError').style.display = 'block';
   } else {
-    // Si es exitoso, ocultamos el error y mostramos la app
     document.getElementById('loginError').style.display = 'none';
-    currentUser = { nombre: data.user.email }; // Usamos el email como nombre en el panel
+    currentUser = { nombre: data.user.email };
     showApp();
   }
 }
@@ -84,26 +69,20 @@ async function intentarLogin(event) {
 function showApp() {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('adminApp').style.display = 'grid';
-  // Formateamos el email para que quede más lindo (ej: admin@lembe... -> Admin)
   const displayName = currentUser.nombre.split('@')[0];
   document.getElementById('sbUser').textContent = displayName.charAt(0).toUpperCase() + displayName.slice(1);
-  
-  // ✅ CAMBIADO: Ahora al iniciar sesión abre "pedidos" en lugar de "stock"
   goPage('pedidos');
 }
 
-// ✅ ACTUALIZADO: Cierre de sesión de Supabase
 async function cerrarSesion() {
   if (supabase) {
     await supabase.auth.signOut();
   }
-  // Recargamos la página para volver a la pantalla de login
   location.reload();
 }
 
 // ---- NAVIGATION ----
 function goPage(page) {
-  // Si el usuario navega a otra sección, pedimos contraseña la próxima vez que vuelva a stock
   if (page !== 'stock') stockDesbloqueado = false;
   currentPage = page;
   document.querySelectorAll('.sb-item').forEach(i => i.classList.toggle('active', i.dataset.page === page));
@@ -124,9 +103,7 @@ function closeModal(id) { document.getElementById(id).classList.remove('open'); 
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 
 // ============================
-//  PROTECCIÓN DE STOCK — Modal de contraseña segura
-//  La verificación ocurre en el servidor de Supabase.
-//  Nadie puede ver la contraseña inspeccionando el código.
+//  PROTECCIÓN DE STOCK
 // ============================
 
 function mostrarModalPasswordStock() {
@@ -227,12 +204,10 @@ function mostrarModalPasswordStock() {
     `;
     document.body.appendChild(modal);
 
-    // Enter para confirmar
     document.getElementById('stockPassInput').addEventListener('keydown', e => {
       if (e.key === 'Enter') verificarPasswordStock();
     });
 
-    // Highlight del input al hacer foco
     document.getElementById('stockPassInput').addEventListener('focus', e => {
       e.target.style.borderBottomColor = 'var(--gold,#c9a84c)';
     });
@@ -241,7 +216,6 @@ function mostrarModalPasswordStock() {
     });
   }
 
-  // Mostramos y reseteamos estado
   document.getElementById('stockPasswordModal').style.display = 'flex';
   document.getElementById('stockPassInput').value = '';
   document.getElementById('stockPassError').textContent = '';
@@ -250,8 +224,6 @@ function mostrarModalPasswordStock() {
   setTimeout(() => document.getElementById('stockPassInput').focus(), 100);
 }
 
-// La contraseña la verifica Supabase del lado del servidor.
-// Nadie puede verla inspeccionando el código.
 async function verificarPasswordStock() {
   const password = document.getElementById('stockPassInput').value;
 
@@ -289,10 +261,11 @@ function cerrarModalPasswordStock() {
 }
 
 // ============================
-//  STOCK
+//  STOCK (✅ BUG #1 CORREGIDO)
 // ============================
 let stockProducts = [];
 let stockFilter = 'todos';
+let noCombo = []; // ✅ INICIALIZAR AL INICIO para evitar ReferenceError
 
 async function renderStock() {
   document.getElementById('topbarActions').innerHTML = `
@@ -308,7 +281,6 @@ async function renderStock() {
       <div class="metric"><div class="metric-label">Agotados</div><div class="metric-val" style="color:var(--red)" id="sm-out">-</div></div>
     </div>
     
-    <!-- ✅ FILTROS ACTUALIZADOS CON DESPLEGABLE DE CATEGORÍAS -->
     <div class="filters" style="display:flex; justify-content:space-between; align-items:center;">
       <div>
         <button class="filter-btn active" onclick="setStockFilter('todos',this)">Todos</button>
@@ -390,13 +362,11 @@ function getStockStatus(p) { if (p.categoria === 'Combos') return 'combo'; retur
 
 function renderStockTable() {
   const q = (document.getElementById('stockSearch')?.value || '').toLowerCase();
-  
-  // ✅ LEEMOS LA CATEGORÍA SELECCIONADA EN EL DESPLEGABLE
   const catFilterSelect = document.getElementById('catFilter');
   const cat = catFilterSelect ? catFilterSelect.value : 'todas';
 
-  // Métricas: excluimos combos del conteo de stock (definido primero para evitar ReferenceError)
-  const noCombo = stockProducts.filter(p => p.categoria !== 'Combos');
+  // ✅ CORREGIDO: noCombo ahora está inicializado arriba
+  noCombo = stockProducts.filter(p => p.categoria !== 'Combos');
   document.getElementById('sm-total').textContent = stockProducts.length;
   document.getElementById('sm-ok').textContent    = noCombo.filter(p => getStockStatus(p) === 'ok').length;
   document.getElementById('sm-low').textContent   = noCombo.filter(p => getStockStatus(p) === 'bajo').length;
@@ -422,7 +392,6 @@ function renderStockTable() {
     const s = getStockStatus(p);
     const esCombo = p.categoria === 'Combos';
 
-    // Pill: combos tienen badge especial, sin número de stock
     const pill = esCombo
       ? `<span class="stock-pill" style="background:rgba(139,92,246,.15);color:#a78bfa;border:1px solid rgba(139,92,246,.3)">● Combo virtual</span>`
       : s === 'ok'  ? `<span class="stock-pill sp-ok">● Normal (${p.stock})</span>`
@@ -437,7 +406,6 @@ function renderStockTable() {
       ? `<img src="${p.imagen_url}" style="width:24px;height:24px;object-fit:cover;border-radius:4px;margin-right:8px;vertical-align:middle;">` 
       : `<span style="margin-right:8px;">${p.emoji || '🍷'}</span>`;
 
-    // Botones: combos solo pueden editarse y eliminarse, sin +/-
     const actionBtns = esCombo
       ? `<button class="act-btn" onclick="editStockProduct(${p.id})" title="Editar receta">✏</button>
          <button class="act-btn del" onclick="delStockProduct(${p.id})" title="Eliminar">🗑</button>`
@@ -459,10 +427,8 @@ function renderStockTable() {
     </div>`;
   }).join('');
 }
-// ============================
-//  LÓGICA DEL ARMADOR DE COMBOS
-// ============================
-let recetaActual = []; // Memoria temporal para los ingredientes
+
+let recetaActual = [];
 
 function toggleComboUI() {
   const isCombo = document.getElementById('sf-cat').value === 'Combos';
@@ -470,7 +436,6 @@ function toggleComboUI() {
   
   if (isCombo) {
     builder.style.display = 'block';
-    // Llenamos el desplegable con todos los productos MENOS los que ya son combos
     const select = document.getElementById('cb-producto');
     select.innerHTML = stockProducts
       .filter(p => p.categoria !== 'Combos')
@@ -479,9 +444,8 @@ function toggleComboUI() {
     renderRecetaLista();
   } else {
     builder.style.display = 'none';
-    recetaActual = []; // Si no es combo, limpiamos la receta
+    recetaActual = [];
   }
-  // Deshabilitar el input de stock si es combo para no confundir al usuario
   document.getElementById('sf-stock').disabled = isCombo;
   if (isCombo) document.getElementById('sf-stock').value = 0;
 }
@@ -494,12 +458,11 @@ function agregarIngredienteCombo() {
 
   if (!id || qty < 1) return;
 
-  // Si ya existe en la lista, le sumamos la cantidad. Si no, lo agregamos.
   const existe = recetaActual.find(r => r.id === id);
   if (existe) existe.qty += qty;
   else recetaActual.push({ id, nombre, qty });
 
-  document.getElementById('cb-qty').value = 1; // Reseteamos el numerito a 1
+  document.getElementById('cb-qty').value = 1;
   renderRecetaLista();
 }
 
@@ -521,6 +484,7 @@ function renderRecetaLista() {
     </div>
   `).join('');
 }
+
 function setStockFilter(f, btn) {
   stockFilter = f;
   document.querySelectorAll('.filters .filter-btn').forEach(b => b.classList.remove('active'));
@@ -541,9 +505,8 @@ function openStockModal(p = null) {
   document.getElementById('sf-origen').value = p?.origen || '';
   document.getElementById('sf-emoji').value = p?.emoji || '';
   
-  // ✅ Cargamos la receta de Supabase si existe (o creamos una vacía)
   recetaActual = (p && Array.isArray(p.receta)) ? [...p.receta] : [];
-  toggleComboUI(); // Muestra u oculta la caja amarilla según la categoría
+  toggleComboUI();
   
   openModal('stockModal');
 }
@@ -553,7 +516,6 @@ async function saveStockProduct() {
   const cat = document.getElementById('sf-cat').value;
   if (!nombre) { alert('Ingresá el nombre'); return; }
 
-  // 1. Validación: Si es combo, al menos debe tener 1 ingrediente
   if (cat === 'Combos' && recetaActual.length === 0) {
     alert('Los combos deben tener al menos un ingrediente en la receta.');
     return;
@@ -567,16 +529,13 @@ async function saveStockProduct() {
     if (nuevaUrl) url_final = nuevaUrl;
   }
 
-  // 2. Lógica de Stock Inteligente:
-  // Si es un Combo, forzamos el stock a 0 porque es un producto "virtual".
-  // Si es un producto normal, tomamos el valor del input.
   const valorStock = cat === 'Combos' ? 0 : (parseInt(document.getElementById('sf-stock').value) || 0);
 
   const prod = {
     nombre, 
     categoria: cat,
     precio: parseFloat(document.getElementById('sf-precio').value) || 0,
-    stock: valorStock, // <--- CAMBIO AQUÍ
+    stock: valorStock,
     stock_minimo: parseInt(document.getElementById('sf-min').value) || 5,
     origen: document.getElementById('sf-origen').value.trim(),
     emoji: document.getElementById('sf-emoji').value.trim() || '🍷',
@@ -619,11 +578,9 @@ function exportStock() {
 }
 async function uploadProductImage(file) {
   showToast("Subiendo imagen...");
-  // Creamos un nombre único para la foto
   const fileExt = file.name.split('.').pop();
   const fileName = `${Date.now()}.${fileExt}`;
 
-  // Subimos al bucket 'productos'
   const { data, error } = await supabase.storage
     .from('productos')
     .upload(fileName, file);
@@ -633,7 +590,6 @@ async function uploadProductImage(file) {
     return null;
   }
 
-  // Obtenemos el link público
   const { data: urlData } = supabase.storage
     .from('productos')
     .getPublicUrl(fileName);
@@ -641,9 +597,8 @@ async function uploadProductImage(file) {
   return urlData.publicUrl;
 }
 
-
 // ============================
-//  CATÁLOGO (simplificado, reutiliza stock)
+//  CATÁLOGO
 // ============================
 const CATEGORIAS = ['Vinos','Espumantes','Cervezas','Espirituosas','Sin alcohol','Combos','Aceite de oliva','Copa del día','Extras'];
 
@@ -686,9 +641,8 @@ function filtrarCatalogo(cat, btn) {
   if (grid && window._catalogoProds) grid.innerHTML = renderCatalogoGrid(window._catalogoProds, cat);
 }
 
-
 // ============================
-//  CAJA / VENTAS Y FLUJO DIARIO
+//  CAJA / VENTAS
 // ============================
 let cajaPOS = [];
 let cajaProducts = [];
@@ -698,9 +652,7 @@ let cajaDescuentos = new Set();
 let movimientosCaja = [];
 let posCategoriaActiva = 'todos';
 
-// ✅ 1. FUNCIÓN MAESTRA (Filtro seguro con matemática de fechas)
 async function cargarDatosDelDia() {
-  // Descargamos todo desde hace 2 días para que la zona horaria del servidor no nos esconda nada
   const limite = new Date();
   limite.setDate(limite.getDate() - 2);
   const fechaStr = limite.toISOString();
@@ -709,13 +661,11 @@ async function cargarDatosDelDia() {
   const ventasCrudas = await getVentas(fechaStr); 
   const movsCrudos = await getMovimientos(fechaStr);
 
-  // Fecha exacta de hoy en TU computadora
   const hoy = new Date();
   const y = hoy.getFullYear();
   const m = hoy.getMonth();
   const d = hoy.getDate();
 
-  // Filtramos comparando Año, Mes y Día exactos
   cajaVentas = (ventasCrudas || []).filter(v => {
     if (!v.created_at) return true;
     const fechaObj = new Date(v.created_at);
@@ -728,47 +678,6 @@ async function cargarDatosDelDia() {
     return fechaObj.getFullYear() === y && fechaObj.getMonth() === m && fechaObj.getDate() === d;
   });
 }
-
-// ✅ 2. OBLIGAMOS AL MODAL A ACTUALIZARSE ANTES DE ABRIRSE
-async function verFlujoDia() {
-  // 🔥 MAGIA: Sincroniza datos antes de abrir para mostrar lo último cargado
-  await cargarDatosDelDia(); 
-  
-  const flujo = armarFlujoOrdenado();
-  
-  // 📏 AJUSTE DE ANCHO: Forzamos al modal a ser más ancho (950px)
-  const modalFlujo = document.querySelector('#flujoModal .modal');
-  if (modalFlujo) {
-    modalFlujo.style.maxWidth = '950px'; 
-    modalFlujo.style.width = '95%';
-  }
-  
-  document.getElementById('flujoTableBody').innerHTML = flujo.map(f => {
-    if (f.tipo === 'venta' && f.estado === 'cancelada') return ''; 
-    
-    let color = (f.tipo==='venta'||f.tipo==='ingreso'||f.tipo==='apertura') ? '#4CAF50' : 
-                (f.tipo==='egreso'||f.tipo==='cierre'?'var(--red)':
-                (f.tipo==='anulacion'?'var(--orange)':'var(--muted)'));
-                
-    let signo = (f.tipo==='egreso'||f.tipo==='cierre') ? '-' : (f.tipo==='anulacion' ? '❌ ' : '');
-    
-    // 📊 NUEVA ESTRUCTURA: Agregamos ancho a las columnas y permitimos que el detalle crezca (1fr)
-    return `
-    <div class="t-row" style="display:grid; grid-template-columns: 85px 110px 1fr 100px 100px; gap: 15px; align-items: center; border-bottom: 0.5px solid var(--border); padding: 10px 0;">
-       <div class="td muted" style="font-size:11px">${new Date(f.hora).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div>
-       <div class="td" style="text-transform:uppercase; font-size:9px; font-weight:bold; color:var(--amber)">${f.tipo}</div>
-       
-       <!-- Celda de Detalle: Ahora con espacio de sobra y sin saltos de línea -->
-       <div class="td" style="text-align:left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${f.desc}</div>
-       
-       <div class="td muted" style="font-size:11px">${f.metodo}</div>
-       <div class="td" style="color:${color}; font-weight:bold; text-align:right;">${signo}${fmt(f.monto)}</div>
-    </div>`;
-  }).join('') || '<div style="padding:2rem;text-align:center;color:var(--muted)">Sin movimientos hoy</div>';
-  
-  openModal('flujoModal');
-}
-
 
 async function renderCaja() {
   document.getElementById('topbarActions').innerHTML = `
@@ -788,7 +697,6 @@ async function renderCaja() {
     </div>
     
     <div class="pos-layout" style="margin:0 -2rem;border-top:0.5px solid var(--border)">
-      <!-- Panel Izquierdo: Buscador y Grilla -->
       <div class="pos-left">
         <input class="search-box" style="width:100%" type="text" placeholder="Buscar producto..." id="posSearch" oninput="renderPosTiles()">
         <div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:.8rem" id="posCatFilters">
@@ -807,7 +715,6 @@ async function renderCaja() {
         </div>
       </div>
       
-      <!-- Panel Derecho: Carrito -->
       <div class="pos-right">
         <div class="pos-right-header">
           <div class="pos-right-title">Venta actual</div>
@@ -842,7 +749,6 @@ async function renderCaja() {
       </div>
     </div>
     
-    <!-- Modales -->
     <div class="modal-bg" id="ticketModal" onclick="if(event.target===this)closeTicket()">
       <div class="ticket">
         <div class="ticket-logo">LEMBE</div><div class="ticket-sub">Tienda de Bebidas</div><hr class="ticket-divider">
@@ -872,15 +778,12 @@ async function renderCaja() {
     </div>
 
     <div class="modal-bg" id="flujoModal" onclick="if(event.target===this)closeModal('flujoModal')">
-      <!-- ✅ SE SUBIÓ EL ANCHO A 950px -->
       <div class="modal" style="max-width:950px; width:95%; padding:0; overflow:hidden">
         <button class="close-modal" onclick="closeModal('flujoModal')" style="top:1rem;right:1rem">✕</button>
 
-        <!-- HEADER STICKY con resumen + filtros -->
         <div style="position:sticky;top:0;z-index:10;background:var(--dark2,#1a1a1a);border-bottom:1px solid var(--border);padding:1.5rem 2rem 1rem">
           <div class="modal-title" style="margin-bottom:1rem">Flujo de Caja del Día</div>
 
-          <!-- Resumen de 4 métricas -->
           <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.6rem;margin-bottom:1rem" id="flujoResumen">
             <div style="background:var(--dark3);padding:.8rem;text-align:center;border:0.5px solid var(--border)">
               <div style="font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:.3rem">Apertura</div>
@@ -900,7 +803,6 @@ async function renderCaja() {
             </div>
           </div>
 
-          <!-- Filtros por tipo -->
           <div style="display:flex;gap:.4rem;flex-wrap:wrap">
             <button class="filter-btn active" onclick="filtrarFlujo('todos',this)">Todos</button>
             <button class="filter-btn" onclick="filtrarFlujo('venta',this)">Ventas</button>
@@ -912,9 +814,7 @@ async function renderCaja() {
           </div>
         </div>
 
-        <!-- TABLA con scroll -->
         <div style="max-height:380px;overflow-y:auto;padding:0 0 1rem">
-          <!-- ✅ COLUMNAS AJUSTADAS PARA DAR ESPACIO AL DETALLE (1fr) -->
           <div class="t-head" style="grid-template-columns: 85px 110px 1fr 100px 100px 100px; gap: 15px; position:sticky; top:0; z-index:5">
             <div class="th">Hora</div>
             <div class="th">Tipo</div>
@@ -926,7 +826,6 @@ async function renderCaja() {
           <div class="t-body" id="flujoTableBody"></div>
         </div>
 
-        <!-- FOOTER -->
         <div class="modal-footer" style="justify-content:space-between;border-top:1px solid var(--border);padding:1rem 2rem">
           <div style="font-size:11px;color:var(--muted)">Todo el historial de la jornada</div>
           <div style="display:flex;gap:.6rem">
@@ -964,7 +863,6 @@ async function renderCaja() {
   renderCajaHist();
 }
 
-// ---- LOGICA DE POS Y CARRITO ----
 function setPosCategoria(cat, btn) {
   posCategoriaActiva = cat;
   document.querySelectorAll('#posCatFilters .filter-btn').forEach(b => b.classList.remove('active'));
@@ -980,19 +878,22 @@ function renderPosTiles() {
     return matchCat && matchQ;
   });
   document.getElementById('posTiles').innerHTML = list.length ? list.map(p => `
-    <div class="prod-tile ${p.stock === 0 ? 'out' : ''}" onclick="posAdd(${p.id})">
+    <div class="prod-tile ${p.stock === 0 && p.categoria !== 'Combos' ? 'out' : ''}" onclick="posAdd(${p.id})">
       <div class="pt-ico">${p.emoji || '🍷'}</div>
       <div class="pt-name">${p.nombre}</div>
       <div class="pt-price">${fmt(p.precio)}</div>
-      <div class="pt-stock">${p.stock > 0 ? p.stock + ' u.' : 'Agotado'}</div>
+      <div class="pt-stock">${p.categoria === 'Combos' ? 'Virtual' : p.stock > 0 ? p.stock + ' u.' : 'Agotado'}</div>
     </div>`).join('') : '<div style="padding:1rem;color:var(--muted);font-size:12px;grid-column:1/-1;text-align:center">Sin resultados</div>';
 }
 
+// ✅ BUG #3 CORREGIDO: Permitir que los combos (stock=0 por diseño) sean seleccionables
 function posAdd(id) {
   const prod = cajaProducts.find(p => p.id === id);
-  if (!prod || prod.stock === 0) return;
+  if (!prod) return;
+  // Permitir combos (stock=0 es normal) pero bloquear productos normales sin stock
+  if (prod.categoria !== 'Combos' && prod.stock === 0) return;
   const ex = cajaPOS.find(c => c.id === id);
-  if (ex) { if (ex.qty < prod.stock) ex.qty++; } else cajaPOS.push({ ...prod, qty: 1 });
+  if (ex) { if (ex.qty < prod.stock || prod.categoria === 'Combos') ex.qty++; } else cajaPOS.push({ ...prod, qty: 1 });
   renderPosCart();
 }
 
@@ -1040,7 +941,6 @@ function selectPM(pm) {
   ['efectivo','transferencia','qr'].forEach(m => document.getElementById('pm-'+m)?.classList.toggle('sel', m===pm));
 }
 
-// ---- COBRO Y ANULACIÓN DE VENTAS ----
 async function cobrar() {
   if (!cajaPOS.length) return;
   
@@ -1057,12 +957,10 @@ async function cobrar() {
 
   const res = await insertVenta(venta);
   if (res.ok) {
-    // 🔥 LÓGICA DE STOCK PARA COMBOS
     for (const item of cajaPOS) {
       const prodOriginal = cajaProducts.find(p => p.id === item.id);
       
       if (prodOriginal) {
-        // ¿Es un combo con receta?
         if (prodOriginal.categoria === 'Combos' && Array.isArray(prodOriginal.receta) && prodOriginal.receta.length > 0) {
           for (const ingrediente of prodOriginal.receta) {
             const prodFisico = cajaProducts.find(p => p.id === ingrediente.id);
@@ -1074,10 +972,8 @@ async function cobrar() {
               });
             }
           }
-          // También descontamos 1 unidad del "Combo" en sí
           await upsertProducto({...prodOriginal, stock: Math.max(0, Number(prodOriginal.stock) - Number(item.qty))});
         } else {
-          // Venta normal
           await upsertProducto({...prodOriginal, stock: Math.max(0, Number(prodOriginal.stock) - Number(item.qty))});
         }
       }
@@ -1093,13 +989,13 @@ async function cobrar() {
 }
 
 async function anularVenta(id) {
-  if (!confirm('¿Estás seguro de anular esta venta? El dinero se restará de la caja y los productos volverán al stock.')) return;
+  if (!confirm('¿Estás seguro de anular esta venta?')) return;
   
   const venta = cajaVentas.find(v => v.id === id);
   if (!venta) return;
 
   const { error } = await supabase.from('ventas').update({ estado: 'cancelada' }).eq('id', id);
-  if (error) { showToast('Error al anular: ' + error.message); return; }
+  if (error) { showToast('Error al anular'); return; }
 
   for (const item of venta.items) {
     const prod = cajaProducts.find(p => p.id === item.id);
@@ -1108,7 +1004,6 @@ async function anularVenta(id) {
     }
   }
 
-  // Anulación Directa
   await supabase.from('movimientos_caja').insert({ 
     tipo: 'anulacion', monto: venta.total, descripcion: `Anulación Venta #${id}`, metodo_pago: venta.metodo_pago 
   });
@@ -1133,11 +1028,10 @@ function showTicket(v) {
 }
 function closeTicket() { cajaPOS=[]; resetDescuentos(); renderPosCart(); closeModal('ticketModal'); }
 
-// ---- MÉTRICAS E HISTORIAL ----
 function renderCajaMetrics() {
   let ef=0, tr=0, qr=0, t=0, count=0;
   cajaVentas.forEach(v => {
-    if (v.estado === 'cancelada') return; // Ignoramos anuladas
+    if (v.estado === 'cancelada') return;
     t += v.total;
     count++;
     if (v.metodo_pago === 'efectivo') ef += v.total;
@@ -1172,11 +1066,9 @@ function renderCajaHist() {
   }).join('') || '<div style="padding:1rem;text-align:center;color:var(--muted);font-size:12px">Sin ventas aún</div>';
 }
 
-// ---- FLUJO, APERTURA Y CIERRE ----
 async function abrirModalApertura() {
   const inicial = prompt("💸 APERTURA DE CAJA\n\n¿Con cuánto dinero físico (billetes/cambio) arrancás la caja hoy?");
   if (inicial !== null && inicial !== "") {
-    // Habla directo con Supabase sin usar supabase.js local
     const res = await supabase.from('movimientos_caja').insert({ 
       tipo: 'apertura', monto: Number(inicial)||0, descripcion: 'Apertura de caja', metodo_pago: 'efectivo' 
     }).select();
@@ -1201,7 +1093,6 @@ async function guardarMovimiento() {
   const desc = document.getElementById('movDesc').value.trim();
   if(!monto || !desc) { alert("Completá el monto y el motivo"); return; }
   
-  // Habla directo con Supabase
   const res = await supabase.from('movimientos_caja').insert({ 
     tipo, monto, descripcion: desc, metodo_pago: metodo 
   }).select();
@@ -1220,29 +1111,32 @@ async function guardarMovimiento() {
 function armarFlujoOrdenado() {
   let flujo = [];
   
-  // Metemos las ventas
   cajaVentas.forEach(v => {
     let t = v.created_at ? new Date(v.created_at).getTime() : Date.now();
     flujo.push({ hora: t, tipo: 'venta', desc: 'Venta ticket', monto: v.total, metodo: v.metodo_pago, estado: v.estado });
   });
   
-  // Metemos los movimientos (aperturas, egresos, etc)
   movimientosCaja.forEach(m => {
     let t = m.created_at ? new Date(m.created_at).getTime() : Date.now();
     flujo.push({ hora: t, tipo: m.tipo, desc: m.descripcion, monto: m.monto, metodo: m.metodo_pago, estado: 'completado' });
   });
   
-  // Ordenamos cronológicamente
   return flujo.sort((a,b) => a.hora - b.hora);
 }
 
 let flujoFiltroActivo = 'todos';
-let flujoCompleto = []; // guarda el flujo completo para filtrar sin recargar
+let flujoCompleto = [];
+
+async function verFlujoDia() {
+  await cargarDatosDelDia();
+  flujoCompleto = armarFlujoOrdenado();
+  flujoFiltroActivo = 'todos';
+  openModal('flujoModal');
+  document.querySelectorAll('#flujoModal .filter-btn').forEach((b,i) => b.classList.toggle('active', i===0));
+  renderFlujoTabla('todos');
+}
 
 function renderFlujoTabla(filtro = 'todos') {
-  const cols = 'grid-template-columns:65px 90px 1fr 90px 100px 110px';
-
-  // Calculamos saldo acumulado sobre el flujo COMPLETO (no el filtrado)
   let saldo = 0;
   const flujoConSaldo = flujoCompleto.map(f => {
     if (f.tipo === 'venta' && f.estado === 'cancelada') return null;
@@ -1255,7 +1149,6 @@ function renderFlujoTabla(filtro = 'todos') {
     return { ...f, saldoAcum: saldo };
   }).filter(Boolean);
 
-  // Actualizamos el resumen sticky
   const apertura = flujoCompleto.filter(f=>f.tipo==='apertura').reduce((a,f)=>a+f.monto,0);
   const ventas   = flujoCompleto.filter(f=>f.tipo==='venta' && f.estado!=='cancelada').reduce((a,f)=>a+f.monto,0);
   const egresos  = flujoCompleto.filter(f=>f.tipo==='egreso').reduce((a,f)=>a+f.monto,0);
@@ -1264,7 +1157,6 @@ function renderFlujoTabla(filtro = 'todos') {
   document.getElementById('fr-egresos').textContent  = fmt(egresos);
   document.getElementById('fr-saldo').textContent    = fmt(saldo);
 
-  // Filtramos para la tabla
   const lista = filtro === 'todos' ? flujoConSaldo : flujoConSaldo.filter(f => f.tipo === filtro);
 
   if (!lista.length) {
@@ -1287,7 +1179,7 @@ function renderFlujoTabla(filtro = 'todos') {
       egreso:'var(--red)', cierre:'var(--red)', anulacion:'var(--orange)'
     }[f.tipo] || 'var(--muted)';
 
-    return `<div class="t-row" style="${cols}">
+    return `<div class="t-row" style="grid-template-columns: 85px 110px 1fr 100px 100px 100px; gap: 15px;">
       <div class="td muted" style="font-size:11px">${new Date(f.hora).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div>
       <div class="td"><span style="font-size:8px;letter-spacing:.15em;text-transform:uppercase;color:${tipoBadge};background:${tipoBadge}18;padding:2px 6px;border-radius:2px">${f.tipo}</span></div>
       <div class="td" style="white-space:normal;word-break:break-word;font-size:12px">${f.desc}</div>
@@ -1303,16 +1195,6 @@ function filtrarFlujo(tipo, btn) {
   document.querySelectorAll('#flujoModal .filter-btn').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
   renderFlujoTabla(tipo);
-}
-
-async function verFlujoDia() {
-  await cargarDatosDelDia();
-  flujoCompleto = armarFlujoOrdenado();
-  flujoFiltroActivo = 'todos';
-  openModal('flujoModal');
-  // Reset filtros
-  document.querySelectorAll('#flujoModal .filter-btn').forEach((b,i) => b.classList.toggle('active', i===0));
-  renderFlujoTabla('todos');
 }
 
 function imprimirFlujo() {
@@ -1404,7 +1286,6 @@ async function confirmarCierre() {
   const dif = real - esperado;
   const detalle = `Cierre. Esperado: ${fmt(esperado)} | Dif: ${dif > 0 ? '+' : ''}${fmt(dif)}`;
   
-  // Habla directo con Supabase
   const res = await supabase.from('movimientos_caja').insert({ 
     tipo: 'cierre', monto: real, descripcion: detalle, metodo_pago: 'efectivo' 
   }).select();
@@ -1437,17 +1318,13 @@ async function renderPedidosPage() {
 }
 
 function renderPedidosContent() {
-  // 1. Filtramos cuáles son los pedidos que están en curso (ni entregados ni cancelados)
   const acts = pedidosData.filter(p => !['entregado', 'cancelado'].includes(p.estado));
   const reservas = pedidosData.filter(p => p.tipo === 'reserva' && !['entregado', 'cancelado'].includes(p.estado));
-
-  // 2. CORRECCIÓN: Sumamos el dinero SOLAMENTE de los pedidos activos (en curso)
   const dineroActivos = acts.reduce((a, p) => a + (Number(p.total) || 0), 0);
 
   const container = document.getElementById('pageContent');
-  if (!container) return; // Seguro anti-errores
+  if (!container) return;
 
-  // 3. Inyectamos la estructura base actualizando los valores de las métricas
   container.innerHTML = `
     <div class="metrics" style="margin-bottom:1rem">
       <div class="metric"><div class="metric-label">Activos</div><div class="metric-val" style="color:var(--gold)">${acts.length}</div></div>
@@ -1485,7 +1362,6 @@ function renderPedidosContent() {
       </div>
     </div>`;
 
-  // 2. Inyectamos las tarjetitas adentro del div anterior (con seguro anti-errores)
   const viewElement = document.getElementById('pedidosView');
   if (viewElement) {
     if (pedidosTab === 'kanban') {
@@ -1497,7 +1373,6 @@ function renderPedidosContent() {
           <div class="col-body">
             ${cards.length === 0 ? '<div style="padding:.8rem;text-align:center;font-size:11px;color:var(--muted)">Sin pedidos</div>' : ''}
             ${cards.map(p => {
-          // Convertimos el array de items a texto legible
           let listaItems = '';
           if (Array.isArray(p.items)) {
             listaItems = p.items.map(i => `• ${i.nombre} x${i.qty}`).join('<br>');
@@ -1551,29 +1426,25 @@ async function nextPedidoStatus(id) {
   if (idx < estadosCycle.indexOf('entregado')) { 
     const nuevoEstado = estadosCycle[idx + 1];
     
-    // SI EL PEDIDO LLEGA A ENTREGADO -> PREGUNTAMOS EL MÉTODO DE PAGO
     if (nuevoEstado === 'entregado') {
       const confirmar = confirm(`¿Marcar como ENTREGADO y sumar ${fmt(p.total)} al Historial de hoy?`);
-      if (!confirmar) return; // Si apretás cancelar, aborta
+      if (!confirmar) return;
 
-      // Pedimos que ingrese el método de pago
       const metodoInput = prompt(
         "¿Cómo pagó el cliente?\n\nIngresá el número:\n1 = Efectivo\n2 = Transferencia\n3 = QR / Débito", 
         "1"
       );
       
-      if (metodoInput === null) return; // Si cierra la ventana, aborta
+      if (metodoInput === null) return;
 
-      // Asignamos el método según lo que escribió
-      let metodoElegido = 'efectivo'; // por defecto
+      let metodoElegido = 'efectivo';
       if (metodoInput === '2' || metodoInput.toLowerCase().includes('trans')) metodoElegido = 'transferencia';
       if (metodoInput === '3' || metodoInput.toLowerCase().includes('qr')) metodoElegido = 'qr';
 
-      // Armamos el ticket para el Historial
       const venta = {
         items: Array.isArray(p.items) ? p.items : [{ nombre: 'Pedido de ' + p.cliente, qty: 1, precio: p.total }],
         total: Number(p.total),
-        metodo_pago: metodoElegido, // ACÁ USAMOS LO QUE ELEGISTE
+        metodo_pago: metodoElegido,
         estado: 'completado'
       };
       
@@ -1581,11 +1452,8 @@ async function nextPedidoStatus(id) {
       showToast(`¡Cobrado con ${metodoElegido}!`);
     }
 
-    // Actualizamos el estado del pedido
     p.estado = nuevoEstado; 
     await updatePedidoEstado(id, nuevoEstado); 
-    
-    // Refrescamos la vista
     renderPedidosContent(); 
   }
 }
@@ -1617,12 +1485,55 @@ function exportPedidos() {
 }
 
 // ============================
-//  HISTORIAL (CORREGIDO)
+//  HISTORIAL (✅ BUG #2 CORREGIDO)
 // ============================
-let histDataFull = []; // Almacén maestro para filtrar sin re-descargar
+let histDataFull = [];
+let histData = [];
+
+// ✅ FUNCIÓN NUEVA: renderHistChart (estaba faltando)
+function renderHistChart(ventasValidas) {
+  if (!ventasValidas || ventasValidas.length === 0) {
+    document.getElementById('histChart').innerHTML = '<div style="padding:1rem;text-align:center;color:var(--muted)">Sin datos para graficar</div>';
+    return;
+  }
+
+  const hoy = new Date();
+  const labels = [];
+  const datos = [];
+
+  for (let i = 6; i >= 0; i--) {
+    const fecha = new Date(hoy);
+    fecha.setDate(fecha.getDate() - i);
+    const fechaStr = fecha.toLocaleDateString('es-AR', { month: 'short', day: 'numeric' });
+    labels.push(fechaStr);
+
+    const ventasDelDia = ventasValidas.filter(v => {
+      const vFecha = new Date(v.created_at);
+      return vFecha.toDateString() === fecha.toDateString();
+    }).reduce((sum, v) => sum + v.total, 0);
+
+    datos.push(ventasDelDia);
+  }
+
+  const maxValor = Math.max(...datos, 1);
+  const escala = 200 / maxValor;
+
+  const html = `
+    <div style="display:flex;align-items:flex-end;justify-content:space-around;height:180px;gap:8px">
+      ${datos.map((d, i) => `
+        <div style="display:flex;flex-direction:column;align-items:center;flex:1">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">${fmt(d)}</div>
+          <div style="background:var(--gold);width:100%;height:${Math.max(d * escala, 4)}px;border-radius:2px;cursor:help" title="${labels[i]}"></div>
+          <div style="font-size:9px;color:var(--muted);margin-top:4px">${labels[i]}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+
+  document.getElementById('histChart').innerHTML = html;
+}
 
 async function renderHistorial() {
-  // 1. Configuramos la barra superior con los inputs
   document.getElementById('topbarActions').innerHTML = `
     <div style="display:flex; gap:.5rem; align-items:center;">
       <label style="font-size:10px; color:var(--muted)">DESDE:</label>
@@ -1634,13 +1545,11 @@ async function renderHistorial() {
     </div>
   `;
   
-  // 2. Traemos los datos frescos de la base de datos UNA sola vez
   const ventasCrudas = await getVentas();
   const movsCrudos = await getMovimientos();
   
   histDataFull = [];
 
-  // Procesamos Ventas
   (ventasCrudas || []).forEach(v => {
     histDataFull.push({
       ...v,
@@ -1649,7 +1558,6 @@ async function renderHistorial() {
     });
   });
 
-  // Procesamos Movimientos
   (movsCrudos || []).forEach(m => {
     histDataFull.push({
       created_at: m.created_at,
@@ -1661,23 +1569,18 @@ async function renderHistorial() {
     });
   });
 
-  // 3. Ordenamos cronológicamente
   histDataFull.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-  // 4. Ejecutamos el filtro inicial (muestra todo si están vacíos)
   aplicarFiltroHistorial();
 }
 
-// ✅ ESTA FUNCIÓN FILTRA SIN RECARGAR DE INTERNET
 function aplicarFiltroHistorial() {
-  const desdeVal = document.getElementById('histDesde')?.value; // "YYYY-MM-DD"
+  const desdeVal = document.getElementById('histDesde')?.value;
   const hastaVal = document.getElementById('histHasta')?.value;
 
-  // Filtramos sobre la variable maestra histDataFull[cite: 1]
   histData = histDataFull.filter(reg => {
     if (!reg.created_at) return true;
     
-    // Extraemos solo la fecha YYYY-MM-DD para comparar texto puro
     const fechaReg = reg.created_at.split('T')[0]; 
 
     if (desdeVal && fechaReg < desdeVal) return false;
@@ -1686,12 +1589,10 @@ function aplicarFiltroHistorial() {
     return true;
   });
 
-  // Actualizamos el contenido visual[cite: 1]
   renderHistContent();
 }
 
 function renderHistContent() {
-  // Para las métricas de arriba, usamos SOLO LAS VENTAS
   const ventasValidas = histData.filter(h => h.tipo_registro === 'venta' && h.estado !== 'cancelada');
   const total = ventasValidas.reduce((a, h) => a + h.total, 0);
   const avg = ventasValidas.length ? Math.round(total / ventasValidas.length) : 0;
@@ -1749,17 +1650,15 @@ function renderHistContent() {
 
   renderHistChart(ventasValidas); 
 }
+
 function exportHistorial() {
-  // 1. Verificamos si hay datos para exportar
   if (!histData || histData.length === 0) {
     showToast("No hay datos en la lista para exportar");
     return;
   }
 
-  // 2. Definimos los encabezados de las columnas
   const rows = [['Fecha', 'Tipo', 'Detalle / Productos', 'Método', 'Monto ($)', 'Estado']];
 
-  // 3. Recorremos los datos filtrados (histData)
   histData.forEach(h => {
     const fecha = new Date(h.created_at).toLocaleString('es-AR', { 
       day: '2-digit', month: '2-digit', year: 'numeric', 
@@ -1775,11 +1674,9 @@ function exportHistorial() {
     rows.push([fecha, tipo, detalle, metodo, monto, estado]);
   });
 
-  // 4. Generamos el nombre del archivo con la fecha de hoy
   const hoy = new Date().toISOString().slice(0, 10);
   const nombreArchivo = `lembe_historial_${hoy}.csv`;
 
-  // 5. Descargamos usando la utilidad que ya tenés
   downloadCSV(rows, nombreArchivo);
   showToast("Excel generado con éxito");
 }
@@ -1787,11 +1684,6 @@ function exportHistorial() {
 // ============================
 //  CONFIGURACIÓN
 // ============================
-// NOTA: Como la autenticación ahora la maneja Supabase, 
-// la gestión de usuarios desde aquí requeriría llamadas a la API de Admin de Supabase.
-// Por ahora, he dejado la interfaz visual para que no se rompa el diseño, 
-// pero deberías gestionar los usuarios reales desde tu panel de Supabase.
-
 let configUsers = [{ id: 1, nombre: 'Admin Lembe', user: 'admin', rol: 'admin' }];
 
 function renderConfig() {
