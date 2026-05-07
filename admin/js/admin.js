@@ -726,12 +726,12 @@ async function renderCaja() {
         <div class="pos-footer">
           <div class="pos-totals">
             <div class="pos-total-row"><span>Subtotal</span><span id="posSub">$0</span></div>
-            <div class="pos-total-row main"><span>Total</span><span id="posTotal">$0</span></div>
+            <div class="pos-total-row main" style="height:61.2px"><span>Total</span><span id="posTotal">$0</span></div>
           </div>
           
           <div style="margin-bottom:.8rem">
             <div style="font-size:9px;letter-spacing:.3em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem">Descuento <span id="descTotalLabel" style="color:var(--orange)"></span></div>
-            <div class="pm-btns" style="grid-template-columns:repeat(6,1fr)">
+            <div class="pm-btns">
               <button class="pm-btn desc-btn" id="desc-5"  onclick="toggleDesc(5)">5%</button>
               <button class="pm-btn desc-btn" id="desc-10" onclick="toggleDesc(10)">10%</button>
               <button class="pm-btn desc-btn" id="desc-15" onclick="toggleDesc(15)">15%</button>
@@ -858,6 +858,7 @@ async function renderCaja() {
       </div>
     </div>`;
 
+  acomodarPanelCaja();
   cajaPOS = [];
   posCategoriaActiva = 'todos';
   renderPosTiles();
@@ -877,7 +878,7 @@ function acomodarPanelCaja() {
     <div class="checkout-panel">
       <div class="pos-totals">
         <div class="pos-total-row"><span>Subtotal</span><span id="posSub">$0</span></div>
-        <div class="pos-total-row main"><span>Total</span><span id="posTotal">$0</span></div>
+        <div class="pos-total-row main" style="height:61.2px"><span>Total</span><span id="posTotal">$0</span></div>
       </div>
 
       <div class="checkout-block">
