@@ -1876,3 +1876,37 @@ body {
   max-height: none !important;
   overflow: hidden !important;
 }
+
+/* Caja definitiva: cobro arriba, carrito abajo */
+.page-caja .pos-right {
+  display: grid !important;
+  grid-template-rows: auto auto minmax(0, 1fr) !important;
+  position: static !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+.page-caja .pos-checkout {
+  order: initial !important;
+  display: block !important;
+  max-height: none !important;
+  overflow: visible !important;
+  padding: .9rem 1.2rem 1rem !important;
+  border-top: none !important;
+  border-bottom: 0.5px solid var(--border) !important;
+  background: var(--dark) !important;
+}
+
+.page-caja .pos-checkout .pm-btns {
+  display: grid !important;
+  grid-template-columns: repeat(3, 1fr) !important;
+}
+
+.page-caja .cart-list {
+  order: initial !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow-y: auto !important;
+}
