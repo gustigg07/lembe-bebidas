@@ -1984,3 +1984,98 @@ body {
   min-height: 0 !important;
   overflow-y: auto !important;
 }
+
+/* Caja: reglas finales contra recortes en ventanas bajas */
+.page-caja {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+.page-caja > .metrics {
+  flex: 0 0 auto !important;
+}
+
+.page-caja .pos-layout {
+  flex: 1 1 auto !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 380px !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: hidden !important;
+  margin: 0 -2rem !important;
+}
+
+.page-caja .pos-left {
+  min-height: 0 !important;
+  overflow-y: auto !important;
+}
+
+.page-caja .pos-right {
+  display: grid !important;
+  grid-template-rows: auto auto minmax(0, 1fr) !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: hidden !important;
+}
+
+.page-caja .checkout-panel {
+  display: block !important;
+  flex: 0 0 auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+.page-caja .checkout-cart {
+  min-height: 0 !important;
+  overflow-y: auto !important;
+}
+
+@media (max-height: 760px), (max-width: 1100px) {
+  body {
+    height: auto !important;
+    min-height: 100vh !important;
+    overflow-y: auto !important;
+  }
+
+  .app,
+  .main {
+    height: auto !important;
+    min-height: 100vh !important;
+    overflow: visible !important;
+  }
+
+  .content,
+  .page-caja,
+  .page-catalogo {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  .page-caja .pos-layout {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 380px !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  .page-caja .pos-left {
+    overflow: visible !important;
+  }
+
+  .page-caja .pos-right {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .page-caja .checkout-cart {
+    max-height: 220px !important;
+    overflow-y: auto !important;
+  }
+}
