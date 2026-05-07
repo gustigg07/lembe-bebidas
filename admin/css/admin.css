@@ -1501,41 +1501,37 @@ body {
   overflow-y: auto !important;
 }
 
-/* 2. SOLUCIÓN COLUMNA DERECHA (Panel fijo y scroll en carrito) */
+/* 2. COLUMNA DERECHA — header + carrito (scroll) + checkout (fijo abajo) */
 .page-caja .pos-right {
-  display: flex !important; /* Cambiamos de Grid a Flexbox */
+  display: flex;
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  overflow: hidden !important;
+  overflow: hidden;
   background: var(--dark);
 }
 
-/* Ordenamos los divs visualmente sin tocar el HTML/JS */
+/* Header fijo arriba */
 .page-caja .pos-right-header {
-  order: 1; /* Título arriba */
   flex-shrink: 0;
 }
 
+/* Carrito ocupa el espacio disponible con scroll interno */
 .page-caja .pos-right > .cart-list {
-  order: 2; /* Carrito en el medio */
-  flex: 1 1 auto; /* ABSORBE TODO EL ESPACIO LIBRE (el rectángulo que marcaste) */
-  overflow-y: auto !important; /* Scroll interno solo acá */
+  flex: 1 1 auto;
+  overflow-y: auto;
   min-height: 0;
-  max-height: none !important; /* Quita el límite fijo de altura que tenía */
+  max-height: none;
 }
 
+/* Panel de cobro clavado abajo */
 .page-caja .pos-footer,
 .page-caja .checkout-panel {
-  order: 3; /* Panel de cobro clavado abajo */
-  flex-shrink: 0; /* Inamovible, nunca se comprime */
-  display: block !important;
-  overflow: visible !important;
+  flex-shrink: 0;
+  overflow: visible;
   padding: .8rem 1.1rem .95rem;
   border-top: 1px solid var(--border);
-  border-bottom: none;
   background: var(--dark);
-  margin-top: 0; /* Limpia espacio hueco de arriba */
 }
 
 /* Ajustes internos del panel de cobro */
