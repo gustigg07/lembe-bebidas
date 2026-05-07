@@ -858,11 +858,22 @@ async function renderCaja() {
       </div>
     </div>`;
 
+  acomodarPanelCaja();
   cajaPOS = [];
   posCategoriaActiva = 'todos';
   renderPosTiles();
   renderCajaMetrics();
   renderCajaHist();
+}
+
+function acomodarPanelCaja() {
+  const posRight = document.querySelector('.page-caja .pos-right');
+  const footer = document.querySelector('.page-caja .pos-footer');
+  const cart = document.querySelector('.page-caja .cart-list');
+  if (!posRight || !footer || !cart) return;
+
+  footer.classList.add('pos-checkout');
+  posRight.insertBefore(footer, cart);
 }
 
 function setPosCategoria(cat, btn) {
