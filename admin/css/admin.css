@@ -1663,3 +1663,124 @@ body {
 .page-catalogo #catalogoGrid::-webkit-scrollbar-thumb {
   background: var(--border);
 }
+
+/* Ajuste estable: ticket visible sin cortar controles */
+.page-caja {
+  display: block !important;
+  overflow-y: auto !important;
+  padding-bottom: 1.8rem;
+}
+
+.page-caja .pos-layout {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 380px !important;
+  gap: 0 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
+  margin: 0 -2rem !important;
+  border-top: 0.5px solid var(--border);
+}
+
+.page-caja .pos-left {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-height: 0;
+  overflow: visible !important;
+  padding: 1.5rem;
+}
+
+.page-caja #posTiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .5rem;
+  flex: none !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+  align-content: normal !important;
+  padding-right: 0 !important;
+}
+
+.page-caja .pos-right {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  display: flex !important;
+  flex-direction: column;
+  min-height: 0;
+  max-height: calc(100vh - 260px);
+  overflow: hidden;
+}
+
+.page-caja .pos-right-header,
+.page-caja .pos-footer {
+  flex: 0 0 auto;
+}
+
+.page-caja .cart-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.page-caja .pos-footer {
+  padding: .9rem 1.2rem 1rem;
+}
+
+.page-caja .pos-footer > div:nth-child(2) {
+  margin-bottom: .8rem !important;
+}
+
+.page-caja .pm-btns,
+.page-caja .pos-footer > div:nth-child(2) .pm-btns {
+  grid-template-columns: repeat(3, 1fr);
+  gap: .4rem;
+  margin-bottom: .8rem;
+}
+
+.page-caja .pm-btn {
+  padding: .5rem;
+  font-size: 10px;
+  letter-spacing: .1em;
+}
+
+.page-caja .pos-totals {
+  margin-bottom: 1rem;
+}
+
+.page-caja .pos-total-row {
+  padding: .3rem 0;
+}
+
+.page-caja .pos-total-row.main {
+  margin-top: .4rem;
+  padding-top: .7rem;
+}
+
+.page-caja .pos-total-row.main span:last-child {
+  font-size: 1.5rem;
+}
+
+.page-caja .cobrar-btn {
+  padding: .9rem;
+}
+
+.page-catalogo {
+  display: block !important;
+  overflow: hidden !important;
+}
+
+.page-catalogo #catalogoGrid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)) !important;
+  gap: .7rem !important;
+  max-height: calc(100vh - 230px);
+  overflow-y: auto;
+  align-content: start;
+}
+
+.page-catalogo #catalogoGrid > div {
+  min-height: 205px;
+}
