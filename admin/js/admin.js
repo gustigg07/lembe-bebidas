@@ -88,6 +88,8 @@ function goPage(page) {
   document.querySelectorAll('.sb-item').forEach(i => i.classList.toggle('active', i.dataset.page === page));
   const titles = { stock: 'Control de Stock', catalogo: 'Catálogo de Productos', caja: 'Ventas y Caja', pedidos: 'Pedidos y Reservas', historial: 'Historial', config: 'Configuración' };
   document.getElementById('pageTitle').textContent = titles[page] || page;
+  const pageContent = document.getElementById('pageContent');
+  pageContent.className = `content page-${page}`;
   const pages = { stock: renderStock, catalogo: renderCatalogo, caja: renderCaja, pedidos: renderPedidosPage, historial: renderHistorial, config: renderConfig };
   if (pages[page]) pages[page]();
 }
