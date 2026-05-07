@@ -1626,6 +1626,40 @@ function renderHistContent() {
 
   renderHistChart(ventasValidas); 
 }
+function exportHistorial() {
+  // 1. Verificamos si hay datos para exportar
+  if (!histData || histData.length === 0) {
+    showToast("No hay datos en la lista para exportar");
+    return;
+  }
+
+  // 2. Definimos los encabezados de las columnas
+  const rows = [['Fecha', 'Tipo', 'Detalle / Productos', 'Método', 'Monto ($)', 'Estado']];
+
+  // 3. Recorremos los datos filtrados (histData)
+  histData.forEach(h => {
+    const fecha = new Date(h.created_at).toLocaleString('es-AR', { 
+      day: '2-digit', month: '2-digit', year: 'numeric', 
+      hour: '2-digit', minute: '2-digit' 
+    });
+
+    const tipo = h.tipo_registro.toUpperCase();
+    const detalle = h.display_desc;
+    const metodo = h.metodo_pago;
+    const monto = h.total;
+    const estado = h.estado || 'completado';
+
+    rows.push([fecha, tipo, detalle, metodo, monto, estado]);
+  });
+
+  // 4. Generamos el nombre del archivo con la fecha de hoy
+  const hoy = new Date().toISOString().slice(0, 10);
+  const nombreArchivo = `lembe_historial_${hoy}.csv`;
+
+  // 5. Descargamos usando la utilidad que ya tenés
+  downloadCSV(rows, nombreArchivo);
+  showToast("Excel generado con éxito");
+}
 
 // ============================
 //  CONFIGURACIÓN
