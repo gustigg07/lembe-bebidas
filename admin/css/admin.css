@@ -1704,3 +1704,9 @@ body {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+/* Botones más grandes en panel de cobro */
+.checkout-panel .pm-btn,
+.pos-footer .pm-btn {
+  padding: .7rem .3rem;
+  font-size: 11px;
+}
