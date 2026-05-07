@@ -31,7 +31,8 @@ body {
   color: var(--cream);
   font-family: 'DM Sans', sans-serif;
   font-size: 13px;
-  min-height: 100vh;
+  height: 100vh;      /* Ocupa el 100% del alto de la pantalla */
+  overflow: hidden;    /* Prohíbe el scroll en toda la página */
 }
 
 /* LOGIN */
@@ -1417,4 +1418,133 @@ body {
     white-space: nowrap; 
     overflow: hidden;
     text-overflow: ellipsis; 
+}
+/* Nuevo: Contenedor para que cada sección sea fija */
+.page-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Área de scroll para productos o tablas */
+.scrollable-area {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 5px;
+}
+
+/* Estilo para la Caja (POS) */
+.pos-layout {
+  display: grid;
+  grid-template-columns: 1fr 380px; /* Productos izquierda, Ticket derecha */
+  gap: 1.5rem;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Pantallas de trabajo fijas: los controles quedan visibles y scrollean solo las listas */
+.app,
+.main {
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.content {
+  min-height: 0;
+}
+
+.page-caja,
+.page-catalogo {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.page-caja {
+  padding-bottom: 0;
+}
+
+.page-caja .caja-metrics,
+.page-caja > .metrics {
+  flex: 0 0 auto;
+  margin-bottom: 1rem !important;
+}
+
+.page-caja .pos-layout {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  margin: 0 -2rem !important;
+  border-top: 0.5px solid var(--border);
+}
+
+.page-caja .pos-left,
+.page-caja .pos-right,
+.page-caja .cart-list {
+  min-height: 0;
+}
+
+.page-caja .pos-left {
+  overflow: hidden;
+}
+
+.page-caja #posSearch,
+.page-caja #posCatFilters,
+.page-caja .caja-history,
+.page-caja .pos-right-header,
+.page-caja .pos-footer {
+  flex: 0 0 auto;
+}
+
+.page-caja #posTiles {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  align-content: start;
+  padding-right: 4px;
+}
+
+.page-caja #posTiles::-webkit-scrollbar,
+.page-catalogo #catalogoGrid::-webkit-scrollbar,
+.page-caja .cart-list::-webkit-scrollbar,
+.page-caja #cajaHist::-webkit-scrollbar {
+  width: 3px;
+}
+
+.page-caja #posTiles::-webkit-scrollbar-thumb,
+.page-catalogo #catalogoGrid::-webkit-scrollbar-thumb,
+.page-caja .cart-list::-webkit-scrollbar-thumb,
+.page-caja #cajaHist::-webkit-scrollbar-thumb {
+  background: var(--border);
+}
+
+.page-caja #cajaHist {
+  display: flex !important;
+  flex-direction: column;
+  gap: .4rem;
+  max-height: 130px !important;
+  overflow-y: auto !important;
+}
+
+.page-caja .pos-right {
+  overflow: hidden;
+}
+
+.page-caja .pos-footer {
+  padding: 1rem 1.2rem;
+}
+
+.page-catalogo > p,
+.page-catalogo #cataloAdminFilters {
+  flex: 0 0 auto;
+}
+
+.page-catalogo #catalogoGrid {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  align-content: start;
+  padding-right: 4px;
 }
